@@ -1,0 +1,2 @@
+# vkbot
+plugin for oxide
