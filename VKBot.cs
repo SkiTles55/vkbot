@@ -773,12 +773,20 @@ namespace Oxide.Plugins
                 if (PlayersCheckList.ContainsValue(player.userID))
                 {
                     CuiHelper.DestroyUi(player, "AlertGUI");
-                    var moder = BasePlayer.FindByID(PlayersCheckList[player.userID]);
-                    if (moder != null)
+                    BasePlayer moder = null;
+                    for (int i = 0; i < PlayersCheckList.Count; i++)
                     {
-                        PrintToChat(moder, string.Format(GetMsg("ИгрокОтключился", player), reason));
+                        if (PlayersCheckList.ElementAt(i).Value == player.userID)
+                        {
+                            ulong moderid = PlayersCheckList.ElementAt(i).Key;
+                            moder = BasePlayer.FindByID(moderid);
+                            PlayersCheckList.Remove(moderid);
+                            if (moder != null)
+                            {
+                                PrintToChat(moder, $"Игрок вызванный на проверку покинул сервер. Причина: {reason}");
+                            }
+                        }
                     }
-                    PlayersCheckList.Remove(PlayersCheckList[player.userID]);
                     if (config.PlChkSet.AutoBan || reason == "Disconnected")
                     {
                         player.IPlayer.Ban("Отказ от проверки");
