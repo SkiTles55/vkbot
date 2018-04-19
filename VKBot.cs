@@ -14,7 +14,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("VKBot", "SkiTles", "1.6.6")]
+    [Info("VKBot", "SkiTles", "1.6.7")]
     class VKBot : RustPlugin
     {
         //Данный плагин принадлежит группе vk.com/vkbotrust
@@ -126,6 +126,14 @@ namespace Oxide.Plugins
                 [JsonProperty(PropertyName = "Отправлять сообщение администратору о бане игрока?")]
                 [DefaultValue(true)]
                 public bool UserBannedMsg { get; set; } = true;
+
+                [JsonProperty(PropertyName = "Комментарий в обсуждения о бане игрока?")]
+                [DefaultValue(false)]
+                public bool UserBannedTopic { get; set; } = false;
+
+                [JsonProperty(PropertyName = "ID обсуждения")]
+                [DefaultValue("none")]
+                public string BannedTopicID { get; set; } = "none";
 
                 [JsonProperty(PropertyName = "Отправлять сообщение администратору о нерабочих плагинах?")]
                 [DefaultValue(true)]
@@ -305,21 +313,41 @@ namespace Oxide.Plugins
                 [DefaultValue("none")]
                 public string Server1ip { get; set; } = "none";
 
+                [JsonProperty(PropertyName = "Название сервера 1 (если стоит none, используется номер)")]
+                [DefaultValue("none")]
+                public string Server1name { get; set; } = "none";
+
                 [JsonProperty(PropertyName = "Сервер 2 IP:PORT (пример: 111.111.111.111:28015)")]
                 [DefaultValue("none")]
                 public string Server2ip { get; set; } = "none";
+
+                [JsonProperty(PropertyName = "Название сервера 2 (если стоит none, используется номер)")]
+                [DefaultValue("none")]
+                public string Server2name { get; set; } = "none";
 
                 [JsonProperty(PropertyName = "Сервер 3 IP:PORT (пример: 111.111.111.111:28015)")]
                 [DefaultValue("none")]
                 public string Server3ip { get; set; } = "none";
 
+                [JsonProperty(PropertyName = "Название сервера 3 (если стоит none, используется номер)")]
+                [DefaultValue("none")]
+                public string Server3name { get; set; } = "none";
+
                 [JsonProperty(PropertyName = "Сервер 4 IP:PORT (пример: 111.111.111.111:28015)")]
                 [DefaultValue("none")]
                 public string Server4ip { get; set; } = "none";
 
+                [JsonProperty(PropertyName = "Название сервера 4 (если стоит none, используется номер)")]
+                [DefaultValue("none")]
+                public string Server4name { get; set; } = "none";
+
                 [JsonProperty(PropertyName = "Сервер 5 IP:PORT (пример: 111.111.111.111:28015)")]
                 [DefaultValue("none")]
                 public string Server5ip { get; set; } = "none";
+
+                [JsonProperty(PropertyName = "Название сервера 5 (если стоит none, используется номер)")]
+                [DefaultValue("none")]
+                public string Server5name { get; set; } = "none";
 
                 [JsonProperty(PropertyName = "Онлайн в emoji?")]
                 [DefaultValue(true)]
@@ -659,6 +687,10 @@ namespace Oxide.Plugins
             {
                 VKBData.WriteObject(usersdata);
             }
+            if (config.StatusStg.UpdateStatus || config.DGLSet.DLEnable)
+            {
+                StatData.WriteObject(statdata);
+            }
         }
         private void Init()
         {            
@@ -684,7 +716,7 @@ namespace Oxide.Plugins
             {
                 ReportsData.WriteObject(reportsdata);
             }
-            if (config.StatusStg.UpdateStatus)
+            if (config.StatusStg.UpdateStatus || config.DGLSet.DLEnable)
             {
                 StatData.WriteObject(statdata);
             }
@@ -787,7 +819,7 @@ namespace Oxide.Plugins
                             }
                         }
                     }
-                    if (config.PlChkSet.AutoBan || reason == "Disconnected")
+                    if (config.PlChkSet.AutoBan && reason == "Disconnected")
                     {
                         player.IPlayer.Ban("Отказ от проверки");
                         if (player.IsConnected)
@@ -822,6 +854,39 @@ namespace Oxide.Plugins
             {
                 CuiHelper.DestroyUi(player, "VKConfGUI");
                 ConfCods.Remove(player);
+            }
+        }
+        void OnPlayerBanned(string name, ulong id, string address, string reason)
+        {
+            string msg2 = null;
+            if (config.MltServSet.MSSEnable)
+            {
+                msg2 = $"[Сервер {config.MltServSet.ServerNumber.ToString()}] Игрок {name} ({id}) был забанен на сервере. Причина: {reason}. Ссылка на профиль стим: steamcommunity.com/profiles/{id}/";
+            }
+            else
+            {
+                msg2 = $"Игрок {name} ({id}) был забанен на сервере. Причина: {reason}. Ссылка на профиль стим: steamcommunity.com/profiles/{id}/";
+            }
+            if (config.AdmNotify.UserBannedTopic && config.AdmNotify.BannedTopicID != "null")
+            {
+                if (reason == "GAMEBAN" || reason == "VAC") return;
+                AddComentToBoard(config.AdmNotify.BannedTopicID, msg2);
+            }
+            if (config.AdmNotify.UserBannedMsg)
+            {
+                if (usersdata.VKUsersData.ContainsKey(id) && usersdata.VKUsersData[id].Confirmed)
+                {
+                    msg2 = msg2 + $" . Ссылка на профиль ВК: vk.com/id{usersdata.VKUsersData[id].VkID}";
+                }
+                if (config.ChNotify.ChNotfEnabled && config.ChNotify.ChNotfSet.Contains("bans"))
+                {
+                    SendChatMessage(config.ChNotify.ChatID, msg2);
+                    if (config.ChNotify.AdmMsg) SendVkMessage(config.AdmNotify.VkID, msg2);
+                }
+                else
+                {
+                    SendVkMessage(config.AdmNotify.VkID, msg2);
+                }
             }
         }
         #endregion
@@ -1205,34 +1270,7 @@ namespace Oxide.Plugins
             if (input.Contains("{updatetime}")) text = text.Replace("{updatetime}", temp);
             return text;
         }
-        void OnPlayerBanned(string name, ulong id, string address, string reason)
-        {
-            if (config.AdmNotify.UserBannedMsg)
-            {
-                string msg2 = null;
-                if (config.MltServSet.MSSEnable)
-                {
-                    msg2 = $"[Сервер {config.MltServSet.ServerNumber.ToString()}] Игрок {name} ({id}) был забанен на сервере. Причина: {reason}. Ссылка на профиль стим: steamcommunity.com/profiles/{id}/";
-                }
-                else
-                {
-                    msg2 = $"Игрок {name} ({id}) был забанен на сервере. Причина: {reason}. Ссылка на профиль стим: steamcommunity.com/profiles/{id}/";
-                }
-                if (usersdata.VKUsersData.ContainsKey(id) && usersdata.VKUsersData[id].Confirmed)
-                {
-                    msg2 = msg2 + $" . Ссылка на профиль ВК: vk.com/id{usersdata.VKUsersData[id].VkID}";
-                }
-                if (config.ChNotify.ChNotfEnabled && config.ChNotify.ChNotfSet.Contains("bans"))
-                {
-                    SendChatMessage(config.ChNotify.ChatID, msg2);
-                    if (config.ChNotify.AdmMsg) SendVkMessage(config.AdmNotify.VkID, msg2);
-                }
-                else
-                {
-                    SendVkMessage(config.AdmNotify.VkID, msg2);
-                }
-            }           
-        }
+        
         private void SendReport(BasePlayer player, string cmd, string[] args)
         {
             if (config.AdmNotify.SendReports)
@@ -1560,7 +1598,12 @@ namespace Oxide.Plugins
                         string online = jsonresponse3["players"].ToString();
                         string slots = jsonresponse3["maxplayers"].ToString();
                         if (config.MltServSet.EmojiStatus) { online = EmojiCounters(online); slots = EmojiCounters(slots); }
-                        server1 = "1⃣: " + online.ToString() + "/" + slots.ToString();
+                        string name = "1⃣: ";
+                        if (config.MltServSet.Server1name != "none")
+                        {
+                            name = config.MltServSet.Server1name + " ";
+                        }
+                        server1 = name + online.ToString() + "/" + slots.ToString();
                     }
                 }, this);
             }
@@ -1576,7 +1619,12 @@ namespace Oxide.Plugins
                         string online = jsonresponse3["players"].ToString();
                         string slots = jsonresponse3["maxplayers"].ToString();
                         if (config.MltServSet.EmojiStatus) { online = EmojiCounters(online); slots = EmojiCounters(slots); }
-                        server2 = ", 2⃣: " + online.ToString() + "/" + slots.ToString();
+                        string name = ", 2⃣: ";
+                        if (config.MltServSet.Server2name != "none")
+                        {
+                            name = ", " + config.MltServSet.Server2name + " ";
+                        }
+                        server2 = name + online.ToString() + "/" + slots.ToString();
                     }
                 }, this);
             }
@@ -1592,7 +1640,12 @@ namespace Oxide.Plugins
                         string online = jsonresponse3["players"].ToString();
                         string slots = jsonresponse3["maxplayers"].ToString();
                         if (config.MltServSet.EmojiStatus) { online = EmojiCounters(online); slots = EmojiCounters(slots); }
-                        server3 = ", 3⃣: " + online.ToString() + "/" + slots.ToString();
+                        string name = ", 3⃣: ";
+                        if (config.MltServSet.Server3name != "none")
+                        {
+                            name = ", " + config.MltServSet.Server3name + " ";
+                        }
+                        server3 = name + online.ToString() + "/" + slots.ToString();
                     }
                 }, this);
             }
@@ -1608,7 +1661,12 @@ namespace Oxide.Plugins
                         string online = jsonresponse3["players"].ToString();
                         string slots = jsonresponse3["maxplayers"].ToString();
                         if (config.MltServSet.EmojiStatus) { online = EmojiCounters(online); slots = EmojiCounters(slots); }
-                        server4 = ", 4⃣: " + online.ToString() + "/" + slots.ToString();
+                        string name = ", 4⃣: ";
+                        if (config.MltServSet.Server4name != "none")
+                        {
+                            name = ", " + config.MltServSet.Server4name + " ";
+                        }
+                        server4 = name + online.ToString() + "/" + slots.ToString();
                     }
                 }, this);
             }
@@ -1624,7 +1682,12 @@ namespace Oxide.Plugins
                         string online = jsonresponse3["players"].ToString();
                         string slots = jsonresponse3["maxplayers"].ToString();
                         if (config.MltServSet.EmojiStatus) { online = EmojiCounters(online); slots = EmojiCounters(slots); }
-                        server5 = ", 5⃣: " + online.ToString() + "/" + slots.ToString();
+                        string name = ", 5⃣: ";
+                        if (config.MltServSet.Server5name != "none")
+                        {
+                            name = ", " + config.MltServSet.Server5name + " ";
+                        }
+                        server5 = name + online.ToString() + "/" + slots.ToString();
                     }
                 }, this);
             }
@@ -1883,6 +1946,12 @@ namespace Oxide.Plugins
             }
             string type = "Статус";
             string url = "https://api.vk.com/method/status.set?group_id=" + config.VKAPIT.GroupID + "&text=" + msg + "&v=5.71&access_token=" + config.VKAPIT.VKTokenApp;
+            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, type), this);
+        }
+        private void AddComentToBoard(string topicid, string msg)
+        {
+            string type = "Комментарий в обсуждения";
+            string url = "https://api.vk.com/method/board.createComment?group_id=" + config.VKAPIT.GroupID + "&topic_id=" + topicid + "&from_group=1&message=" + msg + "&v=5.71&access_token=" + config.VKAPIT.VKTokenApp;
             webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, type), this);
         }
         #endregion
