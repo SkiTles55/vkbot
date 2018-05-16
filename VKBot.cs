@@ -14,7 +14,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("VKBot", "SkiTles", "1.6.7")]
+    [Info("VKBot", "SkiTles", "1.6.8")]
     class VKBot : RustPlugin
     {
         //Данный плагин принадлежит группе vk.com/vkbotrust
@@ -44,7 +44,23 @@ namespace Oxide.Plugins
             "embrasure",
             "floor.grill",
             "wall.frame.fence",
-            "wall.frame.cell"
+            "wall.frame.cell",
+            "foundation",
+            "floor.frame",
+            "floor.triangle",
+            "floor",
+            "foundation.steps",
+            "foundation.triangle",
+            "roof",
+            "stairs.l",
+            "stairs.u",
+            "wall.doorway",
+            "wall.frame",
+            "wall.half",
+            "wall.low",
+            "wall.window",
+            "wall",
+            "wall.external.high.stone"
         };
         private List<ulong> BDayPlayers = new List<ulong>();
         private List<BasePlayer> ConfCods = new List<BasePlayer>();
@@ -496,6 +512,10 @@ namespace Oxide.Plugins
                 [JsonProperty(PropertyName = "Текст блока 7 (доступны все переменные как в статусе)")]
                 [DefaultValue("none")]
                 public string DLText7 { get; set; } = "none";
+
+                [JsonProperty(PropertyName = "Включить вывод топ игроков на обложку?")]
+                [DefaultValue(false)]
+                public bool TPLabel { get; set; } = false;
             }
         }
         private void LoadVariables()
@@ -693,12 +713,12 @@ namespace Oxide.Plugins
             }
         }
         private void Init()
-        {            
+        {
             cmd.AddChatCommand("vk", this, "VKcommand");
             cmd.AddConsoleCommand("updatestatus", this, "UStatus");
             cmd.AddConsoleCommand("updatelabel", this, "ULabel");
             cmd.AddConsoleCommand("sendmsgadmin", this, "MsgAdmin");
-            cmd.AddConsoleCommand("wipealerts", this, "WipeAlerts");            
+            cmd.AddConsoleCommand("wipealerts", this, "WipeAlerts");
             cmd.AddConsoleCommand("userinfo", this, "GetUserInfo");
             cmd.AddConsoleCommand("report.answer", this, "ReportAnswer");
             cmd.AddConsoleCommand("report.list", this, "ReportList");
@@ -731,8 +751,8 @@ namespace Oxide.Plugins
                     var target = BasePlayer.FindByID(player.Value);
                     if (target != null) StopGui(target);
                 }
-                PlayersCheckList.Clear();                
-            }            
+                PlayersCheckList.Clear();
+            }
             if (config.BDayGift.BDayEnabled && BDayPlayers.Count > 0)
             {
                 foreach (var id in BDayPlayers)
@@ -840,7 +860,7 @@ namespace Oxide.Plugins
                     }
                     PlayersCheckList.Remove(player.userID);
                 }
-            }            
+            }
             if (config.BDayGift.BDayEnabled && permission.GroupExists(config.BDayGift.BDayGroup))
             {
                 if (BDayPlayers.Contains(player.userID))
@@ -985,7 +1005,7 @@ namespace Oxide.Plugins
         {
             if (config.TopWPlayersPromo.TopWPlEnabled)
             {
-                if (entity.name.Contains("corpse"))  return;
+                if (entity.name.Contains("corpse")) return;
                 if (hitInfo == null) return;
                 var attacker = hitInfo.Initiator?.ToPlayer();
                 if (attacker == null) return;
@@ -1022,7 +1042,7 @@ namespace Oxide.Plugins
                     {
                         usersdata.VKUsersData[attacker.userID].Raids++;
                     }
-                }                
+                }
             }
         }
         private void CheckDeath(BasePlayer player, HitInfo info, BasePlayer attacker)
@@ -1034,7 +1054,7 @@ namespace Oxide.Plugins
             if (plugins.Exists("Duel"))
             {
                 Duelist = (bool)Duel?.Call("IsDuelPlayer", player);
-            }            
+            }
             if (Duelist) return;
             usersdata.VKUsersData[attacker.userID].Kills++;
         }
@@ -1142,7 +1162,7 @@ namespace Oxide.Plugins
                 string wipedate = WipeDate();
                 string text = config.WipeStg.GrName.Replace("{wipedate}", wipedate);
                 string url = "https://api.vk.com/method/groups.edit?group_id=" + config.VKAPIT.GroupID + "&title=" + text + "&v=5.71&access_token=" + config.VKAPIT.VKTokenApp;
-                webrequest.Enqueue(url, null, (code, response) => 
+                webrequest.Enqueue(url, null, (code, response) =>
                 {
                     var json = JObject.Parse(response);
                     string Result = (string)json["response"];
@@ -1190,7 +1210,7 @@ namespace Oxide.Plugins
                             }
                             userlist = userlist + usersdata.VKUsersData.ElementAt(i).Value.VkID;
                             usercount++;
-                        }                        
+                        }
                     }
                 }
             }
@@ -1270,7 +1290,7 @@ namespace Oxide.Plugins
             if (input.Contains("{updatetime}")) text = text.Replace("{updatetime}", temp);
             return text;
         }
-        
+
         private void SendReport(BasePlayer player, string cmd, string[] args)
         {
             if (config.AdmNotify.SendReports)
@@ -1298,7 +1318,7 @@ namespace Oxide.Plugins
                             reporttext = reporttext + ". ВК: vk.com/id" + usersdata.VKUsersData[player.userID].VkID + " (не подтвержден)";
                         }
                     }
-                    reporttext = reporttext + " ID репорта: " + reportid + ". Сообщение: " + text; 
+                    reporttext = reporttext + " ID репорта: " + reportid + ". Сообщение: " + text;
                     if (config.ChNotify.ChNotfEnabled && config.ChNotify.ChNotfSet.Contains("reports"))
                     {
                         SendChatMessage(config.ChNotify.ChatID, reporttext);
@@ -1521,6 +1541,7 @@ namespace Oxide.Plugins
                         {
                             Server.Broadcast(string.Format(GetMsg("ПолучилНаграду", player), player.displayName, config.GrGifts.VKGroupUrl));
                         }
+                        Log("debug", $"Игрок {player.displayName} получил награду");
                         for (int i = 0; i < config.GrGifts.VKGroupGiftList.Count; i++)
                         {
                             if (Convert.ToInt32(config.GrGifts.VKGroupGiftList.ElementAt(i).Value) > 0)
@@ -1546,7 +1567,7 @@ namespace Oxide.Plugins
                     {
                         Server.Broadcast(string.Format(GetMsg("ПолучилНаграду", player), player.displayName, config.GrGifts.VKGroupUrl));
                     }
-                }                
+                }
             }
             else
             {
@@ -1758,7 +1779,7 @@ namespace Oxide.Plugins
                 PrintWarning($"Указан неверный ID репорта");
                 return;
             }
-            string answer = string.Join(" ", arg.Args.Skip(1).ToArray());            
+            string answer = string.Join(" ", arg.Args.Skip(1).ToArray());
             if (usersdata.VKUsersData.ContainsKey(reportsdata.VKReportsData[reportid].UserID) && usersdata.VKUsersData[reportsdata.VKReportsData[reportid].UserID].Confirmed)
             {
                 string msg = string.Format(GetMsg("ОтветНаРепортВК", 0)) + answer;
@@ -1969,7 +1990,7 @@ namespace Oxide.Plugins
                 else
                 {
                     return null;
-                }                    
+                }
             }
             else
             {
@@ -1990,6 +2011,17 @@ namespace Oxide.Plugins
         string AdminVkID()
         {
             return config.AdmNotify.VkID;
+        }
+        private void VKAPIChatMsg(string text)
+        {
+            if (config.ChNotify.ChNotfEnabled)
+            {
+                SendChatMessage(config.ChNotify.ChatID, text);
+            }
+            else
+            {
+                PrintWarning($"Сообщение не отправлено в беседу. Данная функция отключена. Текст сообщения: {text}");
+            }
         }
         private void VKAPISaveLastNotice(ulong userid, string lasttime)
         {
@@ -2353,7 +2385,7 @@ namespace Oxide.Plugins
         #region TopWipePlayersStatsAndPromo
         private string BannedUsers = ServerUsers.BanListString();
         private ulong GetTopRaider()
-        {            
+        {
             int max = 0;
             ulong TopID = 0;
             int amount = usersdata.VKUsersData.Count;
@@ -2466,7 +2498,7 @@ namespace Oxide.Plugins
             }
             if (traider != 0 && config.TopWPlayersPromo.TopPlPromoGift && usersdata.VKUsersData.ContainsKey(traider) && usersdata.VKUsersData[traider].Confirmed)
             {
-                string text = string.Format(GetMsg("СообщениеИгрокуТопПромо", 0), "рэйдер", config.TopWPlayersPromo.TopRaiderPromo, config.TopWPlayersPromo.StoreUrl);
+                string text = string.Format(GetMsg("СообщениеИгрокуТопПромо", 0), "рейдер", config.TopWPlayersPromo.TopRaiderPromo, config.TopWPlayersPromo.StoreUrl);
                 if (config.TopWPlayersPromo.TopRaiderPromoAtt != "none") text = text + "&attachments=" + config.TopWPlayersPromo.TopRaiderPromoAtt;
                 string reciver = usersdata.VKUsersData[traider].VkID;
                 SendVkMessage(reciver, text);
@@ -2507,7 +2539,7 @@ namespace Oxide.Plugins
             {
                 msg = msg + " [Сервер " + config.MltServSet.ServerNumber.ToString() + "]";
             }
-            msg = msg + " В настройки добавлены новые промокоды: \nТоп рэйдер - " + config.TopWPlayersPromo.TopRaiderPromo + "\nТоп киллер - " + config.TopWPlayersPromo.TopKillerPromo + "\nТоп фармер - " + config.TopWPlayersPromo.TopFarmerPromo;
+            msg = msg + " В настройки добавлены новые промокоды: \nТоп рейдер - " + config.TopWPlayersPromo.TopRaiderPromo + "\nТоп киллер - " + config.TopWPlayersPromo.TopKillerPromo + "\nТоп фармер - " + config.TopWPlayersPromo.TopFarmerPromo;
             SendVkMessage(config.AdmNotify.VkID, msg);
         }
         #endregion
@@ -2601,6 +2633,15 @@ namespace Oxide.Plugins
                     url = url + "&t7=" + PrepareStatus(config.DGLSet.DLText7, "label");
                 }
             }
+            if (config.TopWPlayersPromo.TopWPlEnabled && config.DGLSet.TPLabel)
+            {
+                var tr = GetTopRaider();
+                var tk = GetTopKiller();
+                var tf = GetTopFarmer();
+                if (tf != 0) url = url + "&tfarmer=" + tf.ToString();
+                if (tk != 0) url = url + "&tkiller=" + tk.ToString();
+                if (tr != 0) url = url + "&traider=" + tr.ToString();
+            }
             webrequest.Enqueue(url, null, (code, response) => DLResult(code, response), this);
         }
         private void DLResult(int code, string response)
@@ -2626,7 +2667,7 @@ namespace Oxide.Plugins
                 else
                 {
                     UpdateVKLabel();
-                }                
+                }
             }
             else
             {
@@ -2635,7 +2676,7 @@ namespace Oxide.Plugins
         }
         private void UpdateLabelMultiServer(string text)
         {
-            string url = config.DGLSet.DLUrl + "?t1=" + text; //подставить переменную для выбора места?
+            string url = config.DGLSet.DLUrl + "?t1=" + text;
             webrequest.Enqueue(url, null, (code, response) => DLResult(code, response), this);
         }
         #endregion
