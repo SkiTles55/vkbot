@@ -427,17 +427,17 @@ namespace Oxide.Plugins
                 [DefaultValue("0.643 0.782")]
                 public string AnchorMax { get; set; } = "0.643 0.782";
                 [JsonProperty(PropertyName = "Цвет фона меню")]
-                [DefaultValue("#000000")]
-                public string BgColor { get; set; } = "#000000";
+                [DefaultValue("#000000380")]
+                public string BgColor { get; set; } = "#00000080";
                 [JsonProperty(PropertyName = "Цвет кнопки ЗАКРЫТЬ")]
-                [DefaultValue("#DB0000")]
-                public string bCloseColor { get; set; } = "#DB0000";
+                [DefaultValue("#DB000099")]
+                public string bCloseColor { get; set; } = "#DB000099";
                 [JsonProperty(PropertyName = "Цвет кнопки ПОЛУЧИТЬ КОД")]
-                [DefaultValue("#1FEF00")]
-                public string bSendColor { get; set; } = "#1FEF00";
+                [DefaultValue("#1FEF0099")]
+                public string bSendColor { get; set; } = "#1FEF0099";
                 [JsonProperty(PropertyName = "Цвет остальных кнопок")]
-                [DefaultValue("#494949")]
-                public string bMenuColor { get; set; } = "#494949";
+                [DefaultValue("#49494999")]
+                public string bMenuColor { get; set; } = "#49494999";
             }
         }
         private void LoadVariables()
