@@ -427,8 +427,8 @@ namespace Oxide.Plugins
                 [DefaultValue("0.643 0.782")]
                 public string AnchorMax { get; set; } = "0.643 0.782";
                 [JsonProperty(PropertyName = "Цвет фона меню")]
-                [DefaultValue("#000000380")]
-                public string BgColor { get; set; } = "#00000080";
+                [DefaultValue("#00000099")]
+                public string BgColor { get; set; } = "#00000099";
                 [JsonProperty(PropertyName = "Цвет кнопки ЗАКРЫТЬ")]
                 [DefaultValue("#DB0000ff")]
                 public string bCloseColor { get; set; } = "#DB0000ff";
@@ -2910,7 +2910,7 @@ namespace Oxide.Plugins
                 Parent = "HelpUI",
                 Components =
                 {
-                    new CuiRawImageComponent { Color = "1 1 1 0", Url = config.GUISet.Logo},
+                    new CuiRawImageComponent { Color = "1 1 1 1", Url = config.GUISet.Logo},
                     new CuiRectTransformComponent{ AnchorMin = "0.01 0.6",AnchorMax = "0.99 0.99" }
                 }
             });//Лого сервера
