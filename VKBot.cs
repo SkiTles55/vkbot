@@ -430,14 +430,14 @@ namespace Oxide.Plugins
                 [DefaultValue("#000000380")]
                 public string BgColor { get; set; } = "#00000080";
                 [JsonProperty(PropertyName = "Цвет кнопки ЗАКРЫТЬ")]
-                [DefaultValue("#DB000099")]
-                public string bCloseColor { get; set; } = "#DB000099";
+                [DefaultValue("#DB0000ff")]
+                public string bCloseColor { get; set; } = "#DB0000ff";
                 [JsonProperty(PropertyName = "Цвет кнопки ПОЛУЧИТЬ КОД")]
-                [DefaultValue("#1FEF0099")]
-                public string bSendColor { get; set; } = "#1FEF0099";
+                [DefaultValue("#1FEF00ff")]
+                public string bSendColor { get; set; } = "#1FEF00ff";
                 [JsonProperty(PropertyName = "Цвет остальных кнопок")]
-                [DefaultValue("#49494999")]
-                public string bMenuColor { get; set; } = "#49494999";
+                [DefaultValue("#494949ff")]
+                public string bMenuColor { get; set; } = "#494949ff";
             }
         }
         private void LoadVariables()
