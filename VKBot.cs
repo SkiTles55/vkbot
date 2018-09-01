@@ -14,7 +14,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("VKBot", "SkiTles", "1.7.1")]
+    [Info("VKBot", "SkiTles", "1.7.2")]
     class VKBot : RustPlugin
     {
         //Данный плагин принадлежит группе vk.com/vkbotrust
@@ -62,6 +62,14 @@ namespace Oxide.Plugins
             "wall.external.high.stone"
         };
         private List<ulong> BDayPlayers = new List<ulong>();
+        class ServerInfo
+        {
+            public string name;
+            public string online;
+            public string slots;
+            public string sleepers;
+            public string map;
+        }
         #endregion
 
         #region Config
@@ -90,6 +98,8 @@ namespace Oxide.Plugins
             public CommandSettings CMDSet { get; set; }
             [JsonProperty(PropertyName = "Динамическая обложка группы")]
             public DynamicGroupLabelSettings DGLSet { get; set; }
+            [JsonProperty(PropertyName = "Виджет сообщества")]
+            public GroupWidgetSettings GrWgSet { get; set; }
             [JsonProperty(PropertyName = "Настройки GUI меню")]
             public GUISettings GUISet { get; set; }
 
@@ -385,6 +395,27 @@ namespace Oxide.Plugins
                 [DefaultValue(false)]
                 public bool TPLabel { get; set; } = false;
             }
+            public class GroupWidgetSettings
+            {
+                [JsonProperty(PropertyName = "Включить обновление виджета?")]
+                [DefaultValue(false)]
+                public bool WgEnable { get; set; } = false;
+                [JsonProperty(PropertyName = "Таймер обновления (минуты)")]
+                [DefaultValue(3)]
+                public int UpdateTimer { get; set; } = 3;
+                [JsonProperty(PropertyName = "Заголовок виджета")]
+                [DefaultValue("Мониторинг серверов")]
+                public string WgTitle { get; set; } = "Мониторинг серверов";
+                [JsonProperty(PropertyName = "Ключ приложения для работы с виджетом (Инструкция - https://goo.gl/LpZujf)")]
+                [DefaultValue("none")]
+                public string WgToken { get; set; } = "none";
+                [JsonProperty(PropertyName = "Текст дополнительной ссылки (если стоит none, не используется)")]
+                [DefaultValue("none")]
+                public string URLTitle { get; set; } = "none";
+                [JsonProperty(PropertyName = "Дополнительная ссылка (разрешены только vk.com ссылки)")]
+                [DefaultValue("none")]
+                public string URL { get; set; } = "none";
+            }
             public class GUISettings
             {
                 [JsonProperty(PropertyName = "Ссылка на логотип сервера")]
@@ -422,6 +453,7 @@ namespace Oxide.Plugins
             if (config.TopWPlayersPromo == null) { config.TopWPlayersPromo = new ConfigData.TopWPlPromoSet(); changed = true; }
             if (config.CMDSet == null) { config.CMDSet = new ConfigData.CommandSettings(); changed = true; }
             if (config.DGLSet == null) { config.DGLSet = new ConfigData.DynamicGroupLabelSettings(); changed = true; }
+            if (config.GrWgSet == null) { config.GrWgSet = new ConfigData.GroupWidgetSettings(); changed = true; }
             if (config.GUISet == null) { config.GUISet = new ConfigData.GUISettings(); changed = true; }
             Config.WriteObject(config, true);
             if (changed) PrintWarning("Конфигурационный файл обновлен. Добавлены новые настройки. Список изменений в плагине - vk.com/topic-30818042_36264027");
@@ -441,6 +473,7 @@ namespace Oxide.Plugins
                 TopWPlayersPromo = new ConfigData.TopWPlPromoSet(),
                 CMDSet = new ConfigData.CommandSettings(),
                 DGLSet = new ConfigData.DynamicGroupLabelSettings(),
+                GrWgSet = new ConfigData.GroupWidgetSettings(),
                 GUISet = new ConfigData.GUISettings()
             };
             Config.WriteObject(configData, true);
@@ -532,6 +565,11 @@ namespace Oxide.Plugins
                 if (config.StatusStg.StatusSet == 1) timer.Repeat(config.StatusStg.UpdateTimer * 60, 0, Update1ServerStatus);
                 if (config.StatusStg.StatusSet == 2) timer.Repeat(config.StatusStg.UpdateTimer * 60, 0, () => { UpdateMultiServerStatus("status"); });
             }
+            if (config.GrWgSet.WgEnable)
+            {
+                if (config.GrWgSet.WgToken == "none") { PrintWarning($"Ошибка обновления виджета! В файле конфигурации не указан ключ! Инструкция - https://goo.gl/LpZujf"); return; }
+                timer.Repeat(config.GrWgSet.UpdateTimer * 60, 0, () => { UpdateMultiServerStatus("widget"); });
+            }
             if (config.DGLSet.DLEnable && config.DGLSet.DLUrl != "none")
             {
                 timer.Repeat(config.DGLSet.DLTimer * 60, 0, () => {
@@ -551,6 +589,7 @@ namespace Oxide.Plugins
         {
             cmd.AddChatCommand("vk", this, "VKcommand");
             cmd.AddConsoleCommand("updatestatus", this, "UStatus");
+            cmd.AddConsoleCommand("updatewidget", this, "UWidget");
             cmd.AddConsoleCommand("updatelabel", this, "ULabel");
             cmd.AddConsoleCommand("sendmsgadmin", this, "MsgAdmin");
             cmd.AddConsoleCommand("wipealerts", this, "WipeAlerts");
@@ -904,6 +943,16 @@ namespace Oxide.Plugins
             }
             else { PrintWarning($"Функция обновления статуса отключена."); }
         }
+        private void UWidget(ConsoleSystem.Arg arg)
+        {
+            if (arg.IsAdmin != true) { return; }
+            if (config.GrWgSet.WgEnable)
+            {
+                if (config.GrWgSet.WgToken == "none") { PrintWarning($"Ошибка! В файле конфигурации не указан ключ!"); return; }
+                UpdateMultiServerStatus("widget");
+            }
+            else { PrintWarning($"Функция обновления статуса отключена."); }
+        }
         private string PrepareStatus(string input, string target)
         {
             string text = input;
@@ -1217,6 +1266,7 @@ namespace Oxide.Plugins
             string server3 = "";
             string server4 = "";
             string server5 = "";
+            Dictionary<int, ServerInfo> SList = new Dictionary<int, ServerInfo>();
             if (config.MltServSet.Server1ip != "none")
             {
                 var url = "http://" + config.MltServSet.Server1ip + "/status.json";
@@ -1226,12 +1276,22 @@ namespace Oxide.Plugins
 
                         var jsonresponse3 = JsonConvert.DeserializeObject<Dictionary<string, object>>(response, jsonsettings);
                         if (!(jsonresponse3 is Dictionary<string, object>) || jsonresponse3.Count == 0 || !jsonresponse3.ContainsKey("players") || !jsonresponse3.ContainsKey("maxplayers")) return;
+                        if (target == "widget" && (!jsonresponse3.ContainsKey("sleepers") || !jsonresponse3.ContainsKey("level"))) return;
                         string online = jsonresponse3["players"].ToString();
                         string slots = jsonresponse3["maxplayers"].ToString();
-                        if (config.MltServSet.EmojiStatus) { online = EmojiCounters(online); slots = EmojiCounters(slots); }
+                        if (config.MltServSet.EmojiStatus && target == "status") { online = EmojiCounters(online); slots = EmojiCounters(slots); }
                         string name = "1⃣: ";
-                        if (config.MltServSet.Server1name != "none") name = config.MltServSet.Server1name + " ";
+                        if (target == "widget") name = "1: ";
+                        if (config.MltServSet.Server1name != "none")
+                        {
+                            name = config.MltServSet.Server1name + " ";
+                            if (target == "widget") name = config.MltServSet.Server1name;
+                        }                        
                         server1 = name + online.ToString() + "/" + slots.ToString();
+                        if (target == "widget")
+                        {
+                            SList.Add(1, new ServerInfo() { name = name, online = online, slots = slots, sleepers = jsonresponse3["sleepers"].ToString(), map = jsonresponse3["level"].ToString()});
+                        }
                     }
                 }, this);
             }
@@ -1244,12 +1304,22 @@ namespace Oxide.Plugins
 
                         var jsonresponse3 = JsonConvert.DeserializeObject<Dictionary<string, object>>(response, jsonsettings);
                         if (!(jsonresponse3 is Dictionary<string, object>) || jsonresponse3.Count == 0 || !jsonresponse3.ContainsKey("players") || !jsonresponse3.ContainsKey("maxplayers")) return;
+                        if (target == "widget" && (!jsonresponse3.ContainsKey("sleepers") || !jsonresponse3.ContainsKey("level"))) return;
                         string online = jsonresponse3["players"].ToString();
                         string slots = jsonresponse3["maxplayers"].ToString();
-                        if (config.MltServSet.EmojiStatus) { online = EmojiCounters(online); slots = EmojiCounters(slots); }
+                        if (config.MltServSet.EmojiStatus && target == "status") { online = EmojiCounters(online); slots = EmojiCounters(slots); }
                         string name = ", 2⃣: ";
-                        if (config.MltServSet.Server2name != "none") name = ", " + config.MltServSet.Server2name + " ";
+                        if (target == "widget") name = "2:";
+                        if (config.MltServSet.Server2name != "none")
+                        {
+                            name = ", " + config.MltServSet.Server2name + " ";
+                            if (target == "widget") name = config.MltServSet.Server2name;
+                        }                        
                         server2 = name + online.ToString() + "/" + slots.ToString();
+                        if (target == "widget")
+                        {
+                            SList.Add(2, new ServerInfo() { name = name, online = online, slots = slots, sleepers = jsonresponse3["sleepers"].ToString(), map = jsonresponse3["level"].ToString() });
+                        }
                     }
                 }, this);
             }
@@ -1262,12 +1332,22 @@ namespace Oxide.Plugins
 
                         var jsonresponse3 = JsonConvert.DeserializeObject<Dictionary<string, object>>(response, jsonsettings);
                         if (!(jsonresponse3 is Dictionary<string, object>) || jsonresponse3.Count == 0 || !jsonresponse3.ContainsKey("players") || !jsonresponse3.ContainsKey("maxplayers")) return;
+                        if (target == "widget" && (!jsonresponse3.ContainsKey("sleepers") || !jsonresponse3.ContainsKey("level"))) return;
                         string online = jsonresponse3["players"].ToString();
                         string slots = jsonresponse3["maxplayers"].ToString();
-                        if (config.MltServSet.EmojiStatus) { online = EmojiCounters(online); slots = EmojiCounters(slots); }
+                        if (config.MltServSet.EmojiStatus && target == "status") { online = EmojiCounters(online); slots = EmojiCounters(slots); }
                         string name = ", 3⃣: ";
-                        if (config.MltServSet.Server3name != "none") name = ", " + config.MltServSet.Server3name + " ";
+                        if (target == "widget") name = "3:";
+                        if (config.MltServSet.Server3name != "none")
+                        {
+                            name = ", " + config.MltServSet.Server3name + " ";
+                            if (target == "widget") name = config.MltServSet.Server3name;
+                        }                        
                         server3 = name + online.ToString() + "/" + slots.ToString();
+                        if (target == "widget")
+                        {
+                            SList.Add(3, new ServerInfo() { name = name, online = online, slots = slots, sleepers = jsonresponse3["sleepers"].ToString(), map = jsonresponse3["level"].ToString() });
+                        }
                     }
                 }, this);
             }
@@ -1280,12 +1360,22 @@ namespace Oxide.Plugins
 
                         var jsonresponse3 = JsonConvert.DeserializeObject<Dictionary<string, object>>(response, jsonsettings);
                         if (!(jsonresponse3 is Dictionary<string, object>) || jsonresponse3.Count == 0 || !jsonresponse3.ContainsKey("players") || !jsonresponse3.ContainsKey("maxplayers")) return;
+                        if (target == "widget" && (!jsonresponse3.ContainsKey("sleepers") || !jsonresponse3.ContainsKey("level"))) return;
                         string online = jsonresponse3["players"].ToString();
                         string slots = jsonresponse3["maxplayers"].ToString();
-                        if (config.MltServSet.EmojiStatus) { online = EmojiCounters(online); slots = EmojiCounters(slots); }
+                        if (config.MltServSet.EmojiStatus && target == "status") { online = EmojiCounters(online); slots = EmojiCounters(slots); }
                         string name = ", 4⃣: ";
-                        if (config.MltServSet.Server4name != "none") name = ", " + config.MltServSet.Server4name + " ";
+                        if (target == "widget") name = "4:";
+                        if (config.MltServSet.Server4name != "none")
+                        {
+                            name = ", " + config.MltServSet.Server4name + " ";
+                            if (target == "widget") name = config.MltServSet.Server4name;
+                        }                        
                         server4 = name + online.ToString() + "/" + slots.ToString();
+                        if (target == "widget")
+                        {
+                            SList.Add(4, new ServerInfo() { name = name, online = online, slots = slots, sleepers = jsonresponse3["sleepers"].ToString(), map = jsonresponse3["level"].ToString() });
+                        }
                     }
                 }, this);
             }
@@ -1298,18 +1388,33 @@ namespace Oxide.Plugins
 
                         var jsonresponse3 = JsonConvert.DeserializeObject<Dictionary<string, object>>(response, jsonsettings);
                         if (!(jsonresponse3 is Dictionary<string, object>) || jsonresponse3.Count == 0 || !jsonresponse3.ContainsKey("players") || !jsonresponse3.ContainsKey("maxplayers")) return;
+                        if (target == "widget" && (!jsonresponse3.ContainsKey("sleepers") || !jsonresponse3.ContainsKey("level"))) return;
                         string online = jsonresponse3["players"].ToString();
                         string slots = jsonresponse3["maxplayers"].ToString();
-                        if (config.MltServSet.EmojiStatus) { online = EmojiCounters(online); slots = EmojiCounters(slots); }
+                        if (config.MltServSet.EmojiStatus && target == "status") { online = EmojiCounters(online); slots = EmojiCounters(slots); }
                         string name = ", 5⃣: ";
-                        if (config.MltServSet.Server5name != "none") name = ", " + config.MltServSet.Server5name + " ";
+                        if (target == "widget") name = "5:";
+                        if (config.MltServSet.Server5name != "none")
+                        {
+                            name = ", " + config.MltServSet.Server5name + " ";
+                            if (target == "widget") name = config.MltServSet.Server5name;
+                        }                        
                         server5 = name + online.ToString() + "/" + slots.ToString();
+                        if (target == "widget")
+                        {
+                            SList.Add(5, new ServerInfo() { name = name, online = online, slots = slots, sleepers = jsonresponse3["sleepers"].ToString(), map = jsonresponse3["level"].ToString() });
+                        }
                     }
                 }, this);
             }
-            Puts("Обработка данных. Статус/обложка будет отправлен(а) через 10 секунд.");
+            Puts("Обработка данных. Статус/обложка/виджет будет отправлен(а) через 10 секунд.");
             timer.Once(10f, () =>
             {
+                if (target == "widget")
+                {
+                    PrepareWidgetCode(SList);
+                    return;
+                }
                 text = server1 + server2 + server3 + server4 + server5;
                 if (text != "")
                 {
@@ -1460,9 +1565,27 @@ namespace Oxide.Plugins
                 else { SendVkMessage(config.AdmNotify.VkID, text); }
             }
         }
+        private void PrepareWidgetCode(Dictionary<int, ServerInfo> Slist)
+        {
+            if (Slist.Count == 0) { PrintWarning("Данные для вывода на виджет не получены. Проверьте настройики"); return; }
+            string code = @"return{""title"":""" + config.GrWgSet.WgTitle + @""",""head"":[{""text"":""Сервер""},{""text"":""Онлайн""},{""text"":""Спящие""},{""text"":""Слоты""},{""text"":""Карта""}],""body"":[";
+            foreach (var info in Slist)
+            {
+                code = code + @"[{""text"":""" + info.Value.name + @"""},{""text"":""" + info.Value.online + @"""},{""text"":""" + info.Value.sleepers + @"""},{""text"":""" + info.Value.slots + @"""},{""text"":""" + info.Value.map + @"""}],";
+            }
+            code = code + @"],";
+            if (config.GrWgSet.URLTitle != "none") code = code + @"""more"":""" + config.GrWgSet.URLTitle + @""",""more_url"": """ + config.GrWgSet.URL + @""",";
+            code = code + "};";
+            SendWidget(code);
+        }
         #endregion
 
         #region VKAPI
+        private void SendWidget(string widget)
+        {
+            string url = "https://api.vk.com/method/appWidgets.update?type=table" + "&code=" + widget + "&v=5.80&access_token=" + config.GrWgSet.WgToken;
+            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Виджет"), this);
+        }
         private void SendChatMessage(string chatid, string msg)
         {
             if (msg.Contains("#")) msg = msg.Replace("#", "%23");
@@ -2098,7 +2221,7 @@ namespace Oxide.Plugins
             switch (arg.Args[0])
             {
                 case "maingui.close":
-                    CuiHelper.DestroyUi(player, "MainUI");                    
+                    CuiHelper.DestroyUi(player, "MainUI");
                     break;
                 case "maingui.addvk":
                     CuiHelper.DestroyUi(player, "MainUI");
@@ -2184,7 +2307,7 @@ namespace Oxide.Plugins
                     break;
                 case "choiceplayer":
                     if (OpenReportUI.Contains(player)) OpenReportUI.Remove(player);
-                    CuiHelper.DestroyUi(player, "ReportGUI");                    
+                    CuiHelper.DestroyUi(player, "ReportGUI");
                     PListUI(player);
                     break;
                 case "send":
