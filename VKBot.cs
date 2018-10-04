@@ -14,7 +14,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("VKBot", "SkiTles", "1.7.2")]
+    [Info("VKBot", "SkiTles", "1.7.3")]
     class VKBot : RustPlugin
     {
         //Данный плагин принадлежит группе vk.com/vkbotrust
@@ -28,8 +28,6 @@ namespace Oxide.Plugins
 
         #region Variables
         private System.Random random = new System.Random();
-        private string msg;
-        private string mapfile;
         private bool NewWipe = false;
         JsonSerializerSettings jsonsettings;
         private List<string> allowedentity = new List<string>()
@@ -455,6 +453,7 @@ namespace Oxide.Plugins
             if (config.DGLSet == null) { config.DGLSet = new ConfigData.DynamicGroupLabelSettings(); changed = true; }
             if (config.GrWgSet == null) { config.GrWgSet = new ConfigData.GroupWidgetSettings(); changed = true; }
             if (config.GUISet == null) { config.GUISet = new ConfigData.GUISettings(); changed = true; }
+            if (config.GUISet.Logo == "https://i.imgur.com/QNZykaS.png" && ConVar.Server.headerimage != string.Empty) config.GUISet.Logo = ConVar.Server.headerimage;
             Config.WriteObject(config, true);
             if (changed) PrintWarning("Конфигурационный файл обновлен. Добавлены новые настройки. Список изменений в плагине - vk.com/topic-30818042_36264027");
         }
@@ -559,7 +558,7 @@ namespace Oxide.Plugins
             LoadData();
             cmd.AddChatCommand(config.CMDSet.CMDreport, this, "SendReport");
             CheckAdminID();
-            if (NewWipe) WipeFunctions(mapfile);
+            if (NewWipe) WipeFunctions();
             if (config.StatusStg.UpdateStatus)
             {
                 if (config.StatusStg.StatusSet == 1) timer.Repeat(config.StatusStg.UpdateTimer * 60, 0, Update1ServerStatus);
@@ -616,11 +615,7 @@ namespace Oxide.Plugins
             }
             UnloadAllGUI();
         }
-        void OnNewSave(string filename)
-        {
-            NewWipe = true;
-            mapfile = filename;
-        }
+        void OnNewSave(string filename) { NewWipe = true; }
         void OnPlayerInit(BasePlayer player)
         {
             if (usersdata.VKUsersData.ContainsKey(player.userID))
@@ -630,7 +625,6 @@ namespace Oxide.Plugins
                     usersdata.VKUsersData[player.userID].Name = player.displayName;
                     VKBData.WriteObject(usersdata);
                 }
-                if (usersdata.VKUsersData[player.userID].Bdate == null) { AddBdate(player); }
             }
             if (OpenReportUI.Contains(player)) OpenReportUI.Remove(player);
         }
@@ -674,11 +668,7 @@ namespace Oxide.Plugins
             string msg2 = null;
             if (config.MltServSet.MSSEnable) { msg2 = $"[Сервер {config.MltServSet.ServerNumber.ToString()}] Игрок {name} ({id}) был забанен на сервере. Причина: {reason}. Ссылка на профиль стим: steamcommunity.com/profiles/{id}/"; }
             else { msg2 = $"Игрок {name} ({id}) был забанен на сервере. Причина: {reason}. Ссылка на профиль стим: steamcommunity.com/profiles/{id}/"; }
-            if (config.AdmNotify.UserBannedTopic && config.AdmNotify.BannedTopicID != "null")
-            {
-                if (reason == "GAMEBAN" || reason == "VAC") return;
-                AddComentToBoard(config.AdmNotify.BannedTopicID, msg2);
-            }
+            if (config.AdmNotify.UserBannedTopic && config.AdmNotify.BannedTopicID != "null") AddComentToBoard(config.AdmNotify.BannedTopicID, msg2);
             if (config.AdmNotify.UserBannedMsg)
             {
                 if (usersdata.VKUsersData.ContainsKey(id) && usersdata.VKUsersData[id].Confirmed) { msg2 = msg2 + $" . Ссылка на профиль ВК: vk.com/id{usersdata.VKUsersData[id].VkID}"; }
@@ -794,7 +784,7 @@ namespace Oxide.Plugins
         #endregion
 
         #region Wipe
-        private void WipeFunctions(string filename)
+        private void WipeFunctions()
         {
             if (config.StatusStg.UpdateStatus)
             {
@@ -810,14 +800,10 @@ namespace Oxide.Plugins
             }
             if (config.WipeStg.WPostMsgAdmin)
             {
-                string s = filename;
-                string[] array = s.Split('/');
-                int t = array.Length - 1;
-                string savename = array[t];
-                string[] mapname = savename.Split('.');
-                string msg2 = null;
-                if (config.MltServSet.MSSEnable) { msg2 = $"[VKBot] Сервер {config.MltServSet.ServerNumber.ToString()} вайпнут. Установлена карта: {mapname[0]}. Размер: {mapname[1]}. Сид: {mapname[2]}"; }
-                else { msg2 = $"[VKBot] Сервер вайпнут. Установлена карта: {mapname[0]}. Размер: {mapname[1]}. Сид: {mapname[2]}"; }
+                string msg2 = "[VKBot] Сервер ";
+                if (ConVar.Server.levelurl != string.Empty) { msg2 = msg2 + $"вайпнут. Установлена карта: {ConVar.Server.levelurl}."; }
+                else  { msg2 = msg2 + $"вайпнут. Установлена карта: {ConVar.Server.level}. Размер: {ConVar.Server.worldsize}. Сид: {ConVar.Server.seed}"; }
+                if (config.MltServSet.MSSEnable) msg2 = msg2 + config.MltServSet.ServerNumber.ToString() + " ";
                 if (config.ChNotify.ChNotfEnabled && config.ChNotify.ChNotfSet.Contains("wipe"))
                 {
                     SendChatMessage(config.ChNotify.ChatID, msg2);
@@ -873,7 +859,7 @@ namespace Oxide.Plugins
             {
                 string wipedate = WipeDate();
                 string text = config.WipeStg.GrName.Replace("{wipedate}", wipedate);
-                string url = "https://api.vk.com/method/groups.edit?group_id=" + config.VKAPIT.GroupID + "&title=" + text + "&v=5.80&access_token=" + config.VKAPIT.VKTokenApp;
+                string url = "https://api.vk.com/method/groups.edit?group_id=" + config.VKAPIT.GroupID + "&title=" + text + "&v=5.85&access_token=" + config.VKAPIT.VKTokenApp;
                 webrequest.Enqueue(url, null, (code, response) =>
                 {
                     var json = JObject.Parse(response);
@@ -1051,29 +1037,13 @@ namespace Oxide.Plugins
             Log("Log", $"{player.displayName} ({player.userID}): написал администратору: {reporttext}");
             PrintToChat(player, string.Format(GetMsg("РепортОтправлен", player), config.AdmNotify.ReportsNotify));
         }
-        private void AddBdate(BasePlayer player)
-        {
-            if (usersdata.VKUsersData[player.userID].Bdate != null) return;
-            string Userid = null;
-            string userid = usersdata.VKUsersData[player.userID].VkID;
-            string url2 = "https://api.vk.com/method/users.get?user_ids=" + userid + "&v=5.80&fields=bdate&access_token=" + config.VKAPIT.VKToken;
-            webrequest.Enqueue(url2, null, (code, response) => {
-                var json = JObject.Parse(response);
-                Userid = (string)json["response"][0]["id"];
-                if (Userid == null) return;
-                usersdata.VKUsersData[player.userID].Bdate = "noinfo";
-                var bdate = (string)json["response"][0]["bdate"];
-                if (bdate != null) usersdata.VKUsersData[player.userID].Bdate = bdate;
-                VKBData.WriteObject(usersdata);
-            }, this);
-        }
         private void CheckVkUser(BasePlayer player, string url)
         {
             string Userid = null;
             string[] arr1 = url.Split('/');
             int num = arr1.Length - 1;
             string vkname = arr1[num];
-            string url2 = "https://api.vk.com/method/users.get?user_ids=" + vkname + "&v=5.80&fields=bdate&access_token=" + config.VKAPIT.VKToken;
+            string url2 = "https://api.vk.com/method/users.get?user_ids=" + vkname + "&v=5.85&fields=bdate&access_token=" + config.VKAPIT.VKToken;
             webrequest.Enqueue(url2, null, (code, response) => {
                 if (!response.Contains("error"))
                 {
@@ -1194,7 +1164,7 @@ namespace Oxide.Plugins
                 if (!usersdata.VKUsersData.ContainsKey(player.userID)) { PrintToChat(player, string.Format(GetMsg("ПрофильНеДобавлен", player))); return; }
                 if (!usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильНеПодтвержден", player))); return; }
                 if (usersdata.VKUsersData[player.userID].GiftRecived) { PrintToChat(player, string.Format(GetMsg("НаградаУжеПолучена", player))); return; }
-                string url = $"https://api.vk.com/method/groups.isMember?group_id={config.VKAPIT.GroupID}&user_id={usersdata.VKUsersData[player.userID].VkID}&v=5.80&access_token={config.VKAPIT.VKToken}";
+                string url = $"https://api.vk.com/method/groups.isMember?group_id={config.VKAPIT.GroupID}&user_id={usersdata.VKUsersData[player.userID].VkID}&v=5.85&access_token={config.VKAPIT.VKToken}";
                 webrequest.Enqueue(url, null, (code, response) => {
                     var json = JObject.Parse(response);
                     string Result = (string)json["response"];
@@ -1531,9 +1501,8 @@ namespace Oxide.Plugins
         }
         private void SendConfCode(string reciverID, string msg, BasePlayer player)
         {
-            string type = "Сообщение";
-            string url = "https://api.vk.com/method/messages.send?user_ids=" + reciverID + "&message=" + msg + "&v=5.80&access_token=" + config.VKAPIT.VKToken;
-            webrequest.Enqueue(url, null, (code, response) => GetCallbackConfCode(code, response, type, player), this);
+            string url = "https://api.vk.com/method/messages.send?user_ids=" + reciverID + "&message=" + msg + "&v=5.85&access_token=" + config.VKAPIT.VKToken;
+            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Код подтверждения", player), this);
         }
         private void CheckPlugins()
         {
@@ -1567,11 +1536,16 @@ namespace Oxide.Plugins
         }
         private void PrepareWidgetCode(Dictionary<int, ServerInfo> Slist)
         {
-            if (Slist.Count == 0) { PrintWarning("Данные для вывода на виджет не получены. Проверьте настройики"); return; }
             string code = @"return{""title"":""" + config.GrWgSet.WgTitle + @""",""head"":[{""text"":""Сервер""},{""text"":""Онлайн""},{""text"":""Спящие""},{""text"":""Слоты""},{""text"":""Карта""}],""body"":[";
-            foreach (var info in Slist)
+            if (Slist.Count != 0)
             {
-                code = code + @"[{""text"":""" + info.Value.name + @"""},{""text"":""" + info.Value.online + @"""},{""text"":""" + info.Value.sleepers + @"""},{""text"":""" + info.Value.slots + @"""},{""text"":""" + info.Value.map + @"""}],";
+                foreach (var info in Slist) code = code + @"[{""text"":""" + info.Value.name + @"""},{""text"":""" + info.Value.online + @"""},{""text"":""" + info.Value.sleepers + @"""},{""text"":""" + info.Value.slots + @"""},{""text"":""" + info.Value.map + @"""}],";
+            }
+            else
+            {
+                string map = ConVar.Server.level;
+                if (ConVar.Server.levelurl != string.Empty) map = "Custom Map";
+                code = code + @"[{""text"":""" + ConVar.Server.hostname + @"""},{""text"":""" + BasePlayer.activePlayerList.Count.ToString() + @"""},{""text"":""" + BasePlayer.sleepingPlayerList.Count.ToString() + @"""},{""text"":""" + ConVar.Server.maxplayers.ToString() + @"""},{""text"":""" + map + @"""}],";
             }
             code = code + @"],";
             if (config.GrWgSet.URLTitle != "none") code = code + @"""more"":""" + config.GrWgSet.URLTitle + @""",""more_url"": """ + config.GrWgSet.URL + @""",";
@@ -1583,44 +1557,35 @@ namespace Oxide.Plugins
         #region VKAPI
         private void SendWidget(string widget)
         {
-            string url = "https://api.vk.com/method/appWidgets.update?type=table" + "&code=" + widget + "&v=5.80&access_token=" + config.GrWgSet.WgToken;
+            string url = "https://api.vk.com/method/appWidgets.update?type=table" + "&code=" + URLEncode(widget) + "&v=5.85&access_token=" + config.GrWgSet.WgToken;
             webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Виджет"), this);
         }
         private void SendChatMessage(string chatid, string msg)
         {
-            if (msg.Contains("#")) msg = msg.Replace("#", "%23");
-            string type = "Сообщение в беседу";
-            string url = "https://api.vk.com/method/messages.send?chat_id=" + chatid + "&message=" + msg + "&v=5.80&access_token=" + config.ChNotify.ChNotfToken;
-            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, type), this);
+            string url = "https://api.vk.com/method/messages.send?chat_id=" + chatid + "&message=" + URLEncode(msg) + "&v=5.85&access_token=" + config.ChNotify.ChNotfToken;
+            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Сообщение в беседу"), this);
         }
         private void SendVkMessage(string reciverID, string msg)
         {
-            if (msg.Contains("#")) msg = msg.Replace("#", "%23");
-            string type = "Сообщение";
-            string url = "https://api.vk.com/method/messages.send?user_ids=" + reciverID + "&message=" + msg + "&v=5.80&access_token=" + config.VKAPIT.VKToken;
-            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, type), this);
+            string url = "https://api.vk.com/method/messages.send?user_ids=" + reciverID + "&message=" + URLEncode(msg) + "&v=5.85&access_token=" + config.VKAPIT.VKToken;
+            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Сообщение"), this);
         }
         private void SendVkWall(string msg)
         {
-            if (msg.Contains("#")) msg = msg.Replace("#", "%23");
-            string type = "Пост";
-            string url = "https://api.vk.com/method/wall.post?owner_id=-" + config.VKAPIT.GroupID + "&message=" + msg + "&from_group=1&v=5.80&access_token=" + config.VKAPIT.VKTokenApp;
-            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, type), this);
+            string url = "https://api.vk.com/method/wall.post?owner_id=-" + config.VKAPIT.GroupID + "&message=" + URLEncode(msg) + "&from_group=1&v=5.85&access_token=" + config.VKAPIT.VKTokenApp;
+            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Пост"), this);
         }
         private void SendVkStatus(string msg)
         {
             StatusCheck(msg);
-            if (msg.Contains("#")) msg = msg.Replace("#", "%23");
-            string type = "Статус";
-            string url = "https://api.vk.com/method/status.set?group_id=" + config.VKAPIT.GroupID + "&text=" + msg + "&v=5.80&access_token=" + config.VKAPIT.VKTokenApp;
-            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, type), this);
+            string url = "https://api.vk.com/method/status.set?group_id=" + config.VKAPIT.GroupID + "&text=" + URLEncode(msg) + "&v=5.85&access_token=" + config.VKAPIT.VKTokenApp;
+            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Статус"), this);
         }
         private void AddComentToBoard(string topicid, string msg)
         {
-            string type = "Комментарий в обсуждения";
-            string url = "https://api.vk.com/method/board.createComment?group_id=" + config.VKAPIT.GroupID + "&topic_id=" + topicid + "&from_group=1&message=" + msg + "&v=5.80&access_token=" + config.VKAPIT.VKTokenApp;
-            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, type), this);
-        }
+            string url = "https://api.vk.com/method/board.createComment?group_id=" + config.VKAPIT.GroupID + "&topic_id=" + URLEncode(topicid) + "&from_group=1&message=" + msg + "&v=5.85&access_token=" + config.VKAPIT.VKTokenApp;
+            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Комментарий в обсуждения"), this);
+        }        
         #endregion
 
         #region VKBotAPI
@@ -1695,26 +1660,21 @@ namespace Oxide.Plugins
         {
             LogToFile(filename, $"[{DateTime.Now}] {text}", this);
         }
-        void GetCallback(int code, string response, string type)
+        void GetCallback(int code, string response, string type, BasePlayer player = null)
         {
-            if (!response.Contains("error")) { Puts($"{type} отправлен(о): {response}"); }
+            if (!response.Contains("error")) { Puts($"{type} отправлен(о): {response}"); if (type == "Код подтверждения" && player != null) StartCodeSendedGUI(player); }
             else
             {
-                PrintWarning($"{type} не отправлен(о). Файлы лога: /oxide/logs/VKBot/");
-                Log("Errors", $"{type} не отправлен(о). Ошибка: {response}");
-            }
-        }
-        void GetCallbackConfCode(int code, string response, string type, BasePlayer player)
-        {
-            if (!response.Contains("error"))
-            {
-                Puts($"{type} отправлен(о): {response}");
-                StartCodeSendedGUI(player);
-            }
-            else
-            {
-                if (response.Contains("Can't send messages for users without permission")) { StartVKBotHelpVKGUI(player); }
-                else { Log("errorconfcode", $"Ошибка отправки кода подтверждения. Ответ сервера ВК: {response}"); }
+                if (type == "Код подтверждения")
+                {
+                    if (response.Contains("Can't send messages for users without permission") && player != null) { StartVKBotHelpVKGUI(player); }
+                    else { Log("errorconfcode", $"Ошибка отправки кода подтверждения. Ответ сервера ВК: {response}"); }
+                }
+                else
+                {
+                    PrintWarning($"{type} не отправлен(о). Файлы лога: /oxide/logs/VKBot/");
+                    Log("Errors", $"{type} не отправлен(о). Ошибка: {response}");
+                }
             }
         }
         private string EmojiCounters(string counter)
@@ -1753,19 +1713,28 @@ namespace Oxide.Plugins
         }
         private string GetOnline()
         {
-            string onlinecounter = "";
-            List<ulong> OnlinePlayers = new List<ulong>();
-            foreach (var pl in BasePlayer.activePlayerList)
-            {
-                OnlinePlayers.Add(pl.userID);
-            }
-            onlinecounter = OnlinePlayers.Count.ToString();
+            string onlinecounter = BasePlayer.activePlayerList.Count.ToString();
             if (config.StatusStg.OnlWmaxslots)
             {
                 var slots = ConVar.Server.maxplayers.ToString();
                 onlinecounter = onlinecounter + "/" + slots.ToString();
             }
             return onlinecounter;
+        }
+        private string URLEncode(string input)
+        {
+            if (input.Contains("#")) input = input.Replace("#", "%23");
+            if (input.Contains("$")) input = input.Replace("$", "%24");
+            if (input.Contains("&")) input = input.Replace("&", "%26");
+            if (input.Contains("+")) input = input.Replace("+", "%2B");
+            if (input.Contains(",")) input = input.Replace(",", "%2C");
+            if (input.Contains("/")) input = input.Replace("/", "%2F");
+            if (input.Contains(":")) input = input.Replace(":", "%3A");
+            if (input.Contains(";")) input = input.Replace(";", "%3B");
+            if (input.Contains("=")) input = input.Replace("=", "%3D");
+            if (input.Contains("?")) input = input.Replace("?", "%3F");
+            if (input.Contains("@")) input = input.Replace("@", "%40");
+            return input;
         }
         private void StatusCheck(string msg)
         {
@@ -2033,7 +2002,7 @@ namespace Oxide.Plugins
         #endregion
 
         #region GUIBuilder
-        private CuiElement Panel(string name, string color, string anMin, string anMax, string parent = "Hud", bool cursor = false)
+        private CuiElement BPanel(string name, string color, string anMin, string anMax, string parent = "Hud", bool cursor = false, float fade = 1f)
         {
             var Element = new CuiElement()
             {
@@ -2041,27 +2010,14 @@ namespace Oxide.Plugins
                 Parent = parent,
                 Components =
                 {
-                    new CuiImageComponent { Color = color },
+                    new CuiImageComponent { Material = "assets/content/ui/uibackgroundblur.mat", FadeIn = fade, Color = color },
                     new CuiRectTransformComponent { AnchorMin = anMin, AnchorMax = anMax }
                 }
             };
             if (cursor) Element.Components.Add(new CuiNeedsCursorComponent());
             return Element;
         }
-        private CuiElement Text(string parent, string color, string text, TextAnchor pos, int fsize, string anMin = "0 0", string anMax = "1 1", string fname = "robotocondensed-bold.ttf")
-        {
-            var Element = new CuiElement()
-            {
-                Parent = parent,
-                Components =
-                {
-                    new CuiTextComponent() { Color = color, Text = text, Align = pos, Font = fname, FontSize = fsize },
-                    new CuiRectTransformComponent{ AnchorMin = anMin, AnchorMax = anMax }
-                }
-            };
-            return Element;
-        }
-        private CuiElement Button(string name, string parent, string command, string color, string anMin, string anMax)
+        private CuiElement Panel(string name, string color, string anMin, string anMax, string parent = "Hud", bool cursor = false, float fade = 1f)
         {
             var Element = new CuiElement()
             {
@@ -2069,26 +2025,54 @@ namespace Oxide.Plugins
                 Parent = parent,
                 Components =
                 {
-                    new CuiButtonComponent { Command = command, Color = color},
+                    new CuiImageComponent { FadeIn = fade, Color = color },
+                    new CuiRectTransformComponent { AnchorMin = anMin, AnchorMax = anMax }
+                }
+            };
+            if (cursor) Element.Components.Add(new CuiNeedsCursorComponent());
+            return Element;
+        }
+        private CuiElement Text(string parent, string color, string text, TextAnchor pos, int fsize, string anMin = "0 0", string anMax = "1 1", string fname = "robotocondensed-bold.ttf", float fade = 3f)
+        {
+            var Element = new CuiElement()
+            {
+                Parent = parent,
+                Components =
+                {
+                    new CuiTextComponent() { Color = color, Text = text, Align = pos, Font = fname, FontSize = fsize, FadeIn = fade },
                     new CuiRectTransformComponent{ AnchorMin = anMin, AnchorMax = anMax }
                 }
             };
             return Element;
         }
-        private CuiElement Image(string parent, string url, string anMin, string anMax, string color = "1 1 1 1")
+        private CuiElement Button(string name, string parent, string command, string color, string anMin, string anMax, float fade = 3f)
+        {
+            var Element = new CuiElement()
+            {
+                Name = name,
+                Parent = parent,
+                Components =
+                {
+                    new CuiButtonComponent { Command = command, Color = color, FadeIn = fade},
+                    new CuiRectTransformComponent{ AnchorMin = anMin, AnchorMax = anMax }
+                }
+            };
+            return Element;
+        }
+        private CuiElement Image(string parent, string url, string anMin, string anMax, float fade = 3f, string color = "1 1 1 1")
         {
             var Element = new CuiElement
             {
                 Parent = parent,
                 Components =
                 {
-                    new CuiRawImageComponent { Color = color, Url = url},
+                    new CuiRawImageComponent { Color = color, Url = url, FadeIn = fade},
                     new CuiRectTransformComponent{ AnchorMin = anMin, AnchorMax = anMax }
                 }
             };
             return Element;
         }
-        private CuiElement Input(string name, string parent, int fsize, string command, string anMin = "0 0", string anMax = "1 1", TextAnchor pos = TextAnchor.MiddleCenter, int chlimit = 300, bool psvd = false)
+        private CuiElement Input(string name, string parent, int fsize, string command, string anMin = "0 0", string anMax = "1 1", TextAnchor pos = TextAnchor.MiddleCenter, int chlimit = 300, bool psvd = false, float fade = 3f)
         {
             string text = "";
             var Element = new CuiElement
@@ -2134,7 +2118,7 @@ namespace Oxide.Plugins
         private void StartVKBotAddVKGUI(BasePlayer player)
         {
             CuiElementContainer container = new CuiElementContainer();
-            container.Add(Panel("AddVKUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true));//Окно добавления профиля ВК        
+            container.Add(BPanel("AddVKUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true));//Окно добавления профиля ВК        
             container.Add(Image("AddVKUI", config.GUISet.Logo, "0.01 0.6", "0.99 0.99"));//Лого сервера
             container.Add(Text("AddVKUI", "1 1 1 1", UserName(player.displayName), TextAnchor.MiddleCenter, 18, "0.01 0.5", "0.99 0.6"));//Никнейм игрока            
             container.Add(Text("AddVKUI", "1 1 1 1", "Укажите ссылку на страницу ВК\nв поле ниже и нажмите ENTER", TextAnchor.MiddleCenter, 18, "0.01 0.33", "0.99 0.5"));//Описание
@@ -2155,7 +2139,7 @@ namespace Oxide.Plugins
             string giftvkbuttoncolor = GetColor(config.GUISet.bMenuColor);
             string addvkbuttonanmax = "0.99 0.5";
             CuiElementContainer container = new CuiElementContainer();
-            container.Add(Panel("MainUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true));//Главное окно             
+            container.Add(BPanel("MainUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true));//Главное окно             
             container.Add(Image("MainUI", config.GUISet.Logo, "0.01 0.6", "0.99 0.99"));//Лого сервера
             container.Add(Text("MainUI", "1 1 1 1", UserName(player.displayName), TextAnchor.MiddleCenter, 18, "0.01 0.5", "0.99 0.6"));//Никнейм игрока
             if (usersdata.VKUsersData.ContainsKey(player.userID))
@@ -2191,7 +2175,7 @@ namespace Oxide.Plugins
         private void StartVKBotHelpVKGUI(BasePlayer player)
         {
             CuiElementContainer container = new CuiElementContainer();
-            container.Add(Panel("HelpUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true));//Основное окно
+            container.Add(BPanel("HelpUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true));//Основное окно
             container.Add(Image("HelpUI", config.GUISet.Logo, "0.01 0.6", "0.99 0.99"));//Лого сервера
             container.Add(Text("HelpUI", "1 1 1 1", UserName(player.displayName), TextAnchor.MiddleCenter, 18, "0.01 0.5", "0.99 0.6"));//Никнейм игрока
             container.Add(Text("HelpUI", "1 1 1 1", "Наш бот не может отправить вам сообщение.\nОтправьте в сообщения группы слово <color=#049906>ИСПРАВИТЬ</color>\nи нажмите кнопку <color=#049906>ПОЛУЧИТЬ КОД</color>", TextAnchor.MiddleCenter, 18, "0.01 0.23", "0.99 0.5"));//Текст
@@ -2204,7 +2188,7 @@ namespace Oxide.Plugins
         private void StartCodeSendedGUI(BasePlayer player)
         {
             CuiElementContainer container = new CuiElementContainer();
-            container.Add(Panel("CodeSendedUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true));//Основное окно
+            container.Add(BPanel("CodeSendedUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true));//Основное окно
             container.Add(Image("CodeSendedUI", config.GUISet.Logo, "0.01 0.6", "0.99 0.99"));//Лого сервера
             container.Add(Text("CodeSendedUI", "1 1 1 1", UserName(player.displayName), TextAnchor.MiddleCenter, 18, "0.01 0.5", "0.99 0.6"));//Никнейм игрока
             container.Add(Text("CodeSendedUI", "1 1 1 1", "На вашу страницу ВК отправлено\nсообщение с дальнейшими инструкциями.", TextAnchor.MiddleCenter, 18, "0.01 0.23", "0.99 0.5"));//Текст
@@ -2273,7 +2257,7 @@ namespace Oxide.Plugins
             if (target != null) chpl = $"\nЖалоба на игрока <color=#ff0000>{target.displayName}</color>";
             string title = "<color=#ff0000>" + config.AdmNotify.ReportsNotify + "</color>" + chpl + "\nВведите ваше сообщение в поле ниже и нажмите <color=#ff0000>ENTER</color>";
             CuiElementContainer container = new CuiElementContainer();
-            container.Add(Panel("ReportGUI", "0 0 0 0.75", "0.2 0.125", "0.8 0.9", "Hud", true));
+            container.Add(BPanel("ReportGUI", "0 0 0 0.75", "0.2 0.125", "0.8 0.9", "Hud", true));
             container.Add(Panel("header", "0 0 0 0.75", "0 0.93", "1 1", "ReportGUI"));
             container.Add(Text("header", "1 1 1 1", "Отправка сообщения администратору", TextAnchor.MiddleCenter, 20));
             container.Add(Button("close", "header", "vk.report close", "1 0 0 1", "0.94 0.01", "1.0 0.98"));
@@ -2386,7 +2370,7 @@ namespace Oxide.Plugins
             int maxPages = CalculatePages(players.Count);
             string pageNum = (maxPages > 1) ? $" - {GUIManager.Get(player).Page}" : "";
             CuiElementContainer container = new CuiElementContainer();
-            container.Add(Panel("PListGUI", "0 0 0 0.75", "0.2 0.125", "0.8 0.9", "Hud", true));
+            container.Add(BPanel("PListGUI", "0 0 0 0.75", "0.2 0.125", "0.8 0.9", "Hud", true));
             container.Add(Panel("header", "0 0 0 0.75", "0 0.93", "1 1", "PListGUI"));
             if (maxPages != 1) text = text + " Страница " + pageNum.ToString();
             container.Add(Text("header", "1 1 1 1", text, TextAnchor.MiddleCenter, 20));
