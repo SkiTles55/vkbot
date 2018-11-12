@@ -801,9 +801,9 @@ namespace Oxide.Plugins
             if (config.WipeStg.WPostMsgAdmin)
             {
                 string msg2 = "[VKBot] Сервер ";
+                if (config.MltServSet.MSSEnable) msg2 = msg2 + config.MltServSet.ServerNumber.ToString() + " ";
                 if (ConVar.Server.levelurl != string.Empty) { msg2 = msg2 + $"вайпнут. Установлена карта: {ConVar.Server.levelurl}."; }
                 else  { msg2 = msg2 + $"вайпнут. Установлена карта: {ConVar.Server.level}. Размер: {ConVar.Server.worldsize}. Сид: {ConVar.Server.seed}"; }
-                if (config.MltServSet.MSSEnable) msg2 = msg2 + config.MltServSet.ServerNumber.ToString() + " ";
                 if (config.ChNotify.ChNotfEnabled && config.ChNotify.ChNotfSet.Contains("wipe"))
                 {
                     SendChatMessage(config.ChNotify.ChatID, msg2);
@@ -1725,13 +1725,10 @@ namespace Oxide.Plugins
         {
             if (input.Contains("#")) input = input.Replace("#", "%23");
             if (input.Contains("$")) input = input.Replace("$", "%24");
-            if (input.Contains("&")) input = input.Replace("&", "%26");
             if (input.Contains("+")) input = input.Replace("+", "%2B");
-            if (input.Contains(",")) input = input.Replace(",", "%2C");
             if (input.Contains("/")) input = input.Replace("/", "%2F");
             if (input.Contains(":")) input = input.Replace(":", "%3A");
             if (input.Contains(";")) input = input.Replace(";", "%3B");
-            if (input.Contains("=")) input = input.Replace("=", "%3D");
             if (input.Contains("?")) input = input.Replace("?", "%3F");
             if (input.Contains("@")) input = input.Replace("@", "%40");
             return input;
