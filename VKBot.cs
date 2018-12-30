@@ -68,6 +68,7 @@ namespace Oxide.Plugins
             public string sleepers;
             public string map;
         }
+        private Dictionary<BasePlayer, DateTime> GiftsList = new Dictionary<BasePlayer, DateTime>();
         #endregion
 
         #region Config
@@ -1165,11 +1166,19 @@ namespace Oxide.Plugins
                 if (!usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильНеПодтвержден", player))); return; }
                 if (usersdata.VKUsersData[player.userID].GiftRecived) { PrintToChat(player, string.Format(GetMsg("НаградаУжеПолучена", player))); return; }
                 string url = $"https://api.vk.com/method/groups.isMember?group_id={config.VKAPIT.GroupID}&user_id={usersdata.VKUsersData[player.userID].VkID}&v=5.85&access_token={config.VKAPIT.VKToken}";
-                webrequest.Enqueue(url, null, (code, response) => {
-                    var json = JObject.Parse(response);
-                    string Result = (string)json["response"];
-                    GetGift(code, Result, player);
-                }, this);
+                try
+                {
+                    webrequest.Enqueue(url, null, (code, response) => {
+                        if (response == null || !response.Contains("response")) return;
+                        var json = JObject.Parse(response);
+                        if (json == null) return;
+                        string Result = (string)json["response"];
+                        if (Result == null) return;
+                        GetGift(code, Result, player);
+                    }, this);
+                }
+                catch { }
+                
             }
             else { PrintToChat(player, string.Format(GetMsg("ФункцияОтключена", player))); }
         }
@@ -2216,8 +2225,8 @@ namespace Oxide.Plugins
                     WAlert(player);
                     break;
                 case "maingui.gift":
-                    VKGift(player);
                     CuiHelper.DestroyUi(player, "MainUI");
+                    FixedGifts(player);
                     break;
                 case "maingui.confirm":
                     CuiHelper.DestroyUi(player, "MainUI");
@@ -2242,6 +2251,20 @@ namespace Oxide.Plugins
                 case "csendui.close":
                     CuiHelper.DestroyUi(player, "CodeSendedUI");
                     break;
+            }
+        }
+        private void FixedGifts(BasePlayer player)
+        {
+            if (GiftsList.ContainsKey(player))
+            {
+                TimeSpan interval = DateTime.Now - GiftsList[player];
+                if (interval.TotalSeconds < 15) { PrintToChat(player, "Слишком часто. Попробуйте позже."); return; }
+                else { GiftsList[player] = DateTime.Now;  VKGift(player); }
+            }
+            else
+            {
+                GiftsList.Add(player, DateTime.Now);
+                VKGift(player);
             }
         }
         #endregion
