@@ -7,14 +7,13 @@ using Oxide.Core.Plugins;
 using Oxide.Game.Rust.Cui;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("VKBot", "SkiTles", "1.7.3")]
+    [Info("VKBot", "SkiTles", "1.7.4")]
     class VKBot : RustPlugin
     {
         //Данный плагин принадлежит группе vk.com/vkbotrust
@@ -27,6 +26,8 @@ namespace Oxide.Plugins
         Plugin Duel;
 
         #region Variables
+        static string apiver = "v=5.92";
+        private bool OxideUpdateSended = false;
         private System.Random random = new System.Random();
         private bool NewWipe = false;
         JsonSerializerSettings jsonsettings;
@@ -59,7 +60,20 @@ namespace Oxide.Plugins
             "wall",
             "wall.external.high.stone"
         };
+        List<string> ExplosiveList = new List<string>()
+                {
+                "explosive.satchel.deployed",
+                "grenade.f1.deployed",
+                "grenade.beancan.deployed",
+                "explosive.timed.deployed"
+                };
         private List<ulong> BDayPlayers = new List<ulong>();
+        class GiftItem
+        {
+            public string shortname;
+            public ulong skinid;
+            public int count;
+        }
         class ServerInfo
         {
             public string name;
@@ -105,339 +119,237 @@ namespace Oxide.Plugins
             public class VKAPITokens
             {
                 [JsonProperty(PropertyName = "VK Token группы (для сообщений)")]
-                [DefaultValue("Заполните эти поля, и выполните команду o.reload VKBot")]
                 public string VKToken { get; set; } = "Заполните эти поля, и выполните команду o.reload VKBot";
                 [JsonProperty(PropertyName = "VK Token приложения (для записей на стене и статуса)")]
-                [DefaultValue("Заполните эти поля, и выполните команду o.reload VKBot")]
                 public string VKTokenApp { get; set; } = "Заполните эти поля, и выполните команду o.reload VKBot";
                 [JsonProperty(PropertyName = "VKID группы")]
-                [DefaultValue("Заполните эти поля, и выполните команду o.reload VKBot")]
                 public string GroupID { get; set; } = "Заполните эти поля, и выполните команду o.reload VKBot";
             }
             public class AdminNotify
             {
                 [JsonProperty(PropertyName = "VkID администраторов (пример /11111, 22222/)")]
-                [DefaultValue("Заполните эти поля, и выполните команду o.reload VKBot")]
                 public string VkID { get; set; } = "Заполните эти поля, и выполните команду o.reload VKBot";
                 [JsonProperty(PropertyName = "Включить отправку сообщений администратору командой /report ?")]
-                [DefaultValue(true)]
                 public bool SendReports { get; set; } = true;
                 [JsonProperty(PropertyName = "Включить GUI для команды /report ?")]
-                [DefaultValue(false)]
                 public bool GUIReports { get; set; } = false;
                 [JsonProperty(PropertyName = "Очистка базы репортов при вайпе?")]
-                [DefaultValue(true)]
                 public bool ReportsWipe { get; set; } = true;
                 [JsonProperty(PropertyName = "Предупреждение о злоупотреблении функцией репортов")]
-                [DefaultValue("Наличие в тексте нецензурных выражений, оскорблений администрации или игроков сервера, а так же большое количество безсмысленных сообщений приведет к бану!")]
                 public string ReportsNotify { get; set; } = "Наличие в тексте нецензурных выражений, оскорблений администрации или игроков сервера, а так же большое количество безсмысленных сообщений приведет к бану!";
                 [JsonProperty(PropertyName = "Отправлять сообщение администратору о бане игрока?")]
-                [DefaultValue(true)]
                 public bool UserBannedMsg { get; set; } = true;
                 [JsonProperty(PropertyName = "Комментарий в обсуждения о бане игрока?")]
-                [DefaultValue(false)]
                 public bool UserBannedTopic { get; set; } = false;
                 [JsonProperty(PropertyName = "ID обсуждения")]
-                [DefaultValue("none")]
                 public string BannedTopicID { get; set; } = "none";
                 [JsonProperty(PropertyName = "Отправлять сообщение администратору о нерабочих плагинах?")]
-                [DefaultValue(true)]
                 public bool PluginsCheckMsg { get; set; } = true;
+                [JsonProperty(PropertyName = "Проверка обновлений Oxide")]
+                public bool OxideCheckMsg { get; set; } = false;
             }
             public class ChatNotify
             {
                 [JsonProperty(PropertyName = "VK Token приложения (лучше использовать отдельную страницу для получения токена)")]
-                [DefaultValue("Заполните эти поля, и выполните команду o.reload VKBot")]
                 public string ChNotfToken { get; set; } = "Заполните эти поля, и выполните команду o.reload VKBot";
                 [JsonProperty(PropertyName = "ID беседы")]
-                [DefaultValue("Заполните эти поля, и выполните команду o.reload VKBot")]
                 public string ChatID { get; set; } = "Заполните эти поля, и выполните команду o.reload VKBot";
                 [JsonProperty(PropertyName = "Включить отправку оповещений в беседу?")]
-                [DefaultValue(false)]
                 public bool ChNotfEnabled { get; set; } = false;
                 [JsonProperty(PropertyName = "Дополнительная отправка оповещений в личку администраторам?")]
-                [DefaultValue(false)]
                 public bool AdmMsg { get; set; } = false;
                 [JsonProperty(PropertyName = "Список оповещений отправляемых в беседу (доступно: reports, wipe, bans, plugins)")]
-                [DefaultValue("reports, wipe, oxideupdate, bans")]
                 public string ChNotfSet { get; set; } = "reports, wipe, bans, plugins";
             }
             public class StatusSettings
             {
                 [JsonProperty(PropertyName = "Обновлять статус в группе? Если стоит /false/ статистика собираться не будет")]
-                [DefaultValue(true)]
                 public bool UpdateStatus { get; set; } = true;
                 [JsonProperty(PropertyName = "Вид статуса (1 - текущий сервер, 2 - список серверов, необходим Rust:IO на каждом сервере)")]
-                [DefaultValue(1)]
                 public int StatusSet { get; set; } = 1;
                 [JsonProperty(PropertyName = "Онлайн в статусе вида '125/200'")]
-                [DefaultValue(false)]
                 public bool OnlWmaxslots { get; set; } = false;
                 [JsonProperty(PropertyName = "Таймер обновления статуса (минуты)")]
-                [DefaultValue(30)]
                 public int UpdateTimer { get; set; } = 30;
                 [JsonProperty(PropertyName = "Формат статуса")]
-                [DefaultValue("{usertext}. Сервер вайпнут: {wipedate}. Онлайн игроков: {onlinecounter}. Спящих: {sleepers}. Добыто дерева: {woodcounter}. Добыто серы: {sulfurecounter}. Выпущено ракет: {rocketscounter}. Время обновления: {updatetime}. Использовано взрывчатки: {explosivecounter}. Создано чертежей: {blueprintsconter}. {connect}")]
                 public string StatusText { get; set; } = "{usertext}. Сервер вайпнут: {wipedate}. Онлайн игроков: {onlinecounter}. Спящих: {sleepers}. Добыто дерева: {woodcounter}. Добыто серы: {sulfurecounter}. Выпущено ракет: {rocketscounter}. Время обновления: {updatetime}. Использовано взрывчатки: {explosivecounter}. Создано чертежей: {blueprintsconter}. {connect}";
                 [JsonProperty(PropertyName = "Список счетчиков, которые будут отображаться в виде emoji")]
-                [DefaultValue("onlinecounter, rocketscounter, blueprintsconter, explosivecounter, wipedate")]
                 public string EmojiCounterList { get; set; } = "onlinecounter, rocketscounter, blueprintsconter, explosivecounter, wipedate";
                 [JsonProperty(PropertyName = "Ссылка на коннект сервера вида /connect 111.111.111.11:11111/")]
-                [DefaultValue("connect 111.111.111.11:11111")]
-                public string connecturl { get; set; } = "connect 111.111.111.11:11111";
+                public string Connecturl { get; set; } = "connect 111.111.111.11:11111";
                 [JsonProperty(PropertyName = "Текст для статуса")]
-                [DefaultValue("Сервер 1")]
                 public string StatusUT { get; set; } = "Сервер 1";
             }
             public class WipeSettings
             {
                 [JsonProperty(PropertyName = "Отправлять пост в группу после вайпа?")]
-                [DefaultValue(false)]
                 public bool WPostB { get; set; } = false;
                 [JsonProperty(PropertyName = "Текст поста о вайпе")]
-                [DefaultValue("Заполните эти поля, и выполните команду o.reload VKBot")]
                 public string WPostMsg { get; set; } = "Заполните эти поля, и выполните команду o.reload VKBot";
                 [JsonProperty(PropertyName = "Добавить изображение к посту о вайпе?")]
-                [DefaultValue(false)]
                 public bool WPostAttB { get; set; } = false;
                 [JsonProperty(PropertyName = "Ссылка на изображение к посту о вайпе вида 'photo-1_265827614' (изображение должно быть в альбоме группы)")]
-                [DefaultValue("photo-1_265827614")]
                 public string WPostAtt { get; set; } = "photo-1_265827614";
                 [JsonProperty(PropertyName = "Отправлять сообщение администратору о вайпе?")]
-                [DefaultValue(true)]
                 public bool WPostMsgAdmin { get; set; } = true;
                 [JsonProperty(PropertyName = "Отправлять игрокам сообщение о вайпе автоматически?")]
-                [DefaultValue(false)]
                 public bool WMsgPlayers { get; set; } = false;
                 [JsonProperty(PropertyName = "Текст сообщения игрокам о вайпе (сообщение отправляется только тем кто подписался командой /vk wipealerts)")]
-                [DefaultValue("Сервер вайпнут! Залетай скорее!")]
                 public string WMsgText { get; set; } = "Сервер вайпнут! Залетай скорее!";
                 [JsonProperty(PropertyName = "Игнорировать команду /vk wipealerts? (если включено, сообщение о вайпе будет отправляться всем)")]
-                [DefaultValue(false)]
                 public bool WCMDIgnore { get; set; } = false;
                 [JsonProperty(PropertyName = "Смена названия группы после вайпа")]
-                [DefaultValue(false)]
                 public bool GrNameChange { get; set; } = false;
                 [JsonProperty(PropertyName = "Название группы (переменная {wipedate} отображает дату последнего вайпа)")]
-                [DefaultValue("ServerName | WIPE {wipedate}")]
                 public string GrName { get; set; } = "ServerName | WIPE {wipedate}";
             }
             public class GroupGifts
             {
                 [JsonProperty(PropertyName = "Выдавать подарок игроку за вступление в группу ВК?")]
-                [DefaultValue(true)]
                 public bool VKGroupGifts { get; set; } = true;
-                [JsonProperty(PropertyName = "Подарки за вступление в группу (shortname предмета, количество)")]
-                [DefaultValue(null)]
-                public Dictionary<string, object> VKGroupGiftList { get; set; } = new Dictionary<string, object>
-                {
-                  {"supply.signal", 1},
-                  {"pookie.bear", 2}
-                };
-                [JsonProperty(PropertyName = "Подарок за вступление в группу (команда, если стоит none выдаются предметы из списка выше). Пример: grantperm {steamid} vkraidalert.allow 7d")]
-                [DefaultValue("none")]
+                [JsonProperty(PropertyName = "Подарок за вступление в группу (команда, если стоит none выдаются предметы из файла data/VKBot.json). Пример: grantperm {steamid} vkraidalert.allow 7d")]
                 public string VKGroupGiftCMD { get; set; } = "none";
                 [JsonProperty(PropertyName = "Описание команды")]
-                [DefaultValue("Оповещения о рейде на 7 дней")]
                 public string GiftCMDdesc { get; set; } = "Оповещения о рейде на 7 дней";
                 [JsonProperty(PropertyName = "Ссылка на группу ВК")]
-                [DefaultValue("vk.com/1234")]
                 public string VKGroupUrl { get; set; } = "vk.com/1234";
                 [JsonProperty(PropertyName = "Оповещения в общий чат о получении награды")]
-                [DefaultValue(true)]
                 public bool GiftsBool { get; set; } = true;
                 [JsonProperty(PropertyName = "Включить оповещения для игроков не получивших награду за вступление в группу?")]
-                [DefaultValue(true)]
                 public bool VKGGNotify { get; set; } = true;
                 [JsonProperty(PropertyName = "Интервал оповещений для игроков не получивших награду за вступление в группу (в минутах)")]
-                [DefaultValue(30)]
                 public int VKGGTimer { get; set; } = 30;
                 [JsonProperty(PropertyName = "Выдавать награду каждый вайп?")]
-                [DefaultValue(true)]
                 public bool GiftsWipe { get; set; } = true;
             }
             public class BDayGiftSet
             {
                 [JsonProperty(PropertyName = "Включить награду для именинников?")]
-                [DefaultValue(true)]
                 public bool BDayEnabled { get; set; } = true;
                 [JsonProperty(PropertyName = "Группа для именинников")]
-                [DefaultValue("bdaygroup")]
                 public string BDayGroup { get; set; } = "bdaygroup";
-                [JsonProperty(PropertyName = "Оповещения в общий чат о имениннках")]
-                [DefaultValue(false)]
+                [JsonProperty(PropertyName = "Оповещения в общий чат о именинниках")]
                 public bool BDayNotify { get; set; } = false;
             }
             public class MultipleServersSettings
             {
                 [JsonProperty(PropertyName = "Включить поддержку несколько серверов?")]
-                [DefaultValue(false)]
                 public bool MSSEnable { get; set; } = false;
                 [JsonProperty(PropertyName = "Номер сервера")]
-                [DefaultValue(1)]
                 public int ServerNumber { get; set; } = 1;
                 [JsonProperty(PropertyName = "Сервер 1 IP:PORT (пример: 111.111.111.111:28015)")]
-                [DefaultValue("none")]
                 public string Server1ip { get; set; } = "none";
                 [JsonProperty(PropertyName = "Название сервера 1 (если стоит none, используется номер)")]
-                [DefaultValue("none")]
                 public string Server1name { get; set; } = "none";
                 [JsonProperty(PropertyName = "Сервер 2 IP:PORT (пример: 111.111.111.111:28015)")]
-                [DefaultValue("none")]
                 public string Server2ip { get; set; } = "none";
                 [JsonProperty(PropertyName = "Название сервера 2 (если стоит none, используется номер)")]
-                [DefaultValue("none")]
                 public string Server2name { get; set; } = "none";
                 [JsonProperty(PropertyName = "Сервер 3 IP:PORT (пример: 111.111.111.111:28015)")]
-                [DefaultValue("none")]
                 public string Server3ip { get; set; } = "none";
                 [JsonProperty(PropertyName = "Название сервера 3 (если стоит none, используется номер)")]
-                [DefaultValue("none")]
                 public string Server3name { get; set; } = "none";
                 [JsonProperty(PropertyName = "Сервер 4 IP:PORT (пример: 111.111.111.111:28015)")]
-                [DefaultValue("none")]
                 public string Server4ip { get; set; } = "none";
                 [JsonProperty(PropertyName = "Название сервера 4 (если стоит none, используется номер)")]
-                [DefaultValue("none")]
                 public string Server4name { get; set; } = "none";
                 [JsonProperty(PropertyName = "Сервер 5 IP:PORT (пример: 111.111.111.111:28015)")]
-                [DefaultValue("none")]
                 public string Server5ip { get; set; } = "none";
                 [JsonProperty(PropertyName = "Название сервера 5 (если стоит none, используется номер)")]
-                [DefaultValue("none")]
                 public string Server5name { get; set; } = "none";
                 [JsonProperty(PropertyName = "Онлайн в emoji?")]
-                [DefaultValue(true)]
                 public bool EmojiStatus { get; set; } = true;
             }
             public class TopWPlPromoSet
             {
                 [JsonProperty(PropertyName = "Включить топ игроков вайпа")]
-                [DefaultValue(true)]
                 public bool TopWPlEnabled { get; set; } = true;
                 [JsonProperty(PropertyName = "Включить отправку промо кодов за топ?")]
-                [DefaultValue(false)]
                 public bool TopPlPromoGift { get; set; } = false;
                 [JsonProperty(PropertyName = "Пост на стене группы о топ игроках вайпа")]
-                [DefaultValue(true)]
                 public bool TopPlPost { get; set; } = true;
                 [JsonProperty(PropertyName = "Ссылка на изображение к посту вида 'photo-1_265827614' (изображение должно быть в альбоме группы), оставить 'none' если не нужно")]
-                [DefaultValue("none")]
                 public string TopPlPostAtt { get; set; } = "none";
                 [JsonProperty(PropertyName = "Промо для топ рэйдера")]
-                [DefaultValue("topraider")]
                 public string TopRaiderPromo { get; set; } = "topraider";
                 [JsonProperty(PropertyName = "Ссылка на изображение к сообщению топ рейдеру вида 'photo-1_265827614' (изображение должно быть в альбоме группы), оставить 'none' если не нужно")]
-                [DefaultValue("none")]
                 public string TopRaiderPromoAtt { get; set; } = "none";
                 [JsonProperty(PropertyName = "Промо для топ килера")]
-                [DefaultValue("topkiller")]
                 public string TopKillerPromo { get; set; } = "topkiller";
                 [JsonProperty(PropertyName = "Ссылка на изображение к сообщению топ киллеру вида 'photo-1_265827614' (изображение должно быть в альбоме группы), оставить 'none' если не нужно")]
-                [DefaultValue("none")]
                 public string TopKillerPromoAtt { get; set; } = "none";
                 [JsonProperty(PropertyName = "Промо для топ фармера")]
-                [DefaultValue("topfarmer")]
                 public string TopFarmerPromo { get; set; } = "topfarmer";
                 [JsonProperty(PropertyName = "Ссылка на изображение к сообщению топ фармеру вида 'photo-1_265827614' (изображение должно быть в альбоме группы), оставить 'none' если не нужно")]
-                [DefaultValue("none")]
                 public string TopFarmerPromoAtt { get; set; } = "none";
                 [JsonProperty(PropertyName = "Ссылка на донат магазин")]
-                [DefaultValue("server.gamestores.ru")]
                 public string StoreUrl { get; set; } = "server.gamestores.ru";
                 [JsonProperty(PropertyName = "Автоматическая генерация промокодов после вайпа")]
-                [DefaultValue(false)]
                 public bool GenRandomPromo { get; set; } = false;
             }
             public class CommandSettings
             {
                 [JsonProperty(PropertyName = "Команда отправки сообщения администратору")]
-                [DefaultValue("report")]
                 public string CMDreport { get; set; } = "report";
             }
             public class DynamicGroupLabelSettings
             {
                 [JsonProperty(PropertyName = "Включить динамическую обложку?")]
-                [DefaultValue(false)]
                 public bool DLEnable { get; set; } = false;
                 [JsonProperty(PropertyName = "Ссылка на скрипт обновления")]
-                [DefaultValue("none")]
                 public string DLUrl { get; set; } = "none";
                 [JsonProperty(PropertyName = "Таймер обновления (в минутах)")]
-                [DefaultValue(10)]
                 public int DLTimer { get; set; } = 10;
                 [JsonProperty(PropertyName = "Обложка с онлайном нескольких серверов (все настройки ниже игнорируются)")]
-                [DefaultValue(false)]
                 public bool DLMSEnable { get; set; } = false;
                 [JsonProperty(PropertyName = "Текст блока 1 (доступны все переменные как в статусе)")]
-                [DefaultValue("none")]
                 public string DLText1 { get; set; } = "none";
                 [JsonProperty(PropertyName = "Текст блока 2 (доступны все переменные как в статусе)")]
-                [DefaultValue("none")]
                 public string DLText2 { get; set; } = "none";
                 [JsonProperty(PropertyName = "Текст блока 3 (доступны все переменные как в статусе)")]
-                [DefaultValue("none")]
                 public string DLText3 { get; set; } = "none";
                 [JsonProperty(PropertyName = "Текст блока 4 (доступны все переменные как в статусе)")]
-                [DefaultValue("none")]
                 public string DLText4 { get; set; } = "none";
                 [JsonProperty(PropertyName = "Текст блока 5 (доступны все переменные как в статусе)")]
-                [DefaultValue("none")]
                 public string DLText5 { get; set; } = "none";
                 [JsonProperty(PropertyName = "Текст блока 6 (доступны все переменные как в статусе)")]
-                [DefaultValue("none")]
                 public string DLText6 { get; set; } = "none";
                 [JsonProperty(PropertyName = "Текст блока 7 (доступны все переменные как в статусе)")]
-                [DefaultValue("none")]
                 public string DLText7 { get; set; } = "none";
                 [JsonProperty(PropertyName = "Включить вывод топ игроков на обложку?")]
-                [DefaultValue(false)]
                 public bool TPLabel { get; set; } = false;
             }
             public class GroupWidgetSettings
             {
                 [JsonProperty(PropertyName = "Включить обновление виджета?")]
-                [DefaultValue(false)]
                 public bool WgEnable { get; set; } = false;
                 [JsonProperty(PropertyName = "Таймер обновления (минуты)")]
-                [DefaultValue(3)]
                 public int UpdateTimer { get; set; } = 3;
                 [JsonProperty(PropertyName = "Заголовок виджета")]
-                [DefaultValue("Мониторинг серверов")]
                 public string WgTitle { get; set; } = "Мониторинг серверов";
                 [JsonProperty(PropertyName = "Ключ приложения для работы с виджетом (Инструкция - https://goo.gl/LpZujf)")]
-                [DefaultValue("none")]
                 public string WgToken { get; set; } = "none";
                 [JsonProperty(PropertyName = "Текст дополнительной ссылки (если стоит none, не используется)")]
-                [DefaultValue("none")]
                 public string URLTitle { get; set; } = "none";
                 [JsonProperty(PropertyName = "Дополнительная ссылка (разрешены только vk.com ссылки)")]
-                [DefaultValue("none")]
                 public string URL { get; set; } = "none";
             }
             public class GUISettings
             {
                 [JsonProperty(PropertyName = "Ссылка на логотип сервера")]
-                [DefaultValue("https://i.imgur.com/QNZykaS.png")]
                 public string Logo { get; set; } = "https://i.imgur.com/QNZykaS.png";
                 [JsonProperty(PropertyName = "Позиция GUI AnchorMin (дефолт 0.347 0.218)")]
-                [DefaultValue("0.347 0.218")]
                 public string AnchorMin { get; set; } = "0.347 0.218";
                 [JsonProperty(PropertyName = "Позиция GUI AnchorMax (дефолт 0.643 0.782)")]
-                [DefaultValue("0.643 0.782")]
                 public string AnchorMax { get; set; } = "0.643 0.782";
                 [JsonProperty(PropertyName = "Цвет фона меню")]
-                [DefaultValue("#00000099")]
                 public string BgColor { get; set; } = "#00000099";
                 [JsonProperty(PropertyName = "Цвет кнопки ЗАКРЫТЬ")]
-                [DefaultValue("#DB0000ff")]
-                public string bCloseColor { get; set; } = "#DB0000ff";
+                public string BCloseColor { get; set; } = "#DB0000ff";
                 [JsonProperty(PropertyName = "Цвет кнопки ПОЛУЧИТЬ КОД")]
-                [DefaultValue("#1FEF00ff")]
-                public string bSendColor { get; set; } = "#1FEF00ff";
+                public string BSendColor { get; set; } = "#1FEF00ff";
                 [JsonProperty(PropertyName = "Цвет остальных кнопок")]
-                [DefaultValue("#494949ff")]
-                public string bMenuColor { get; set; } = "#494949ff";
+                public string BMenuColor { get; set; } = "#494949ff";
             }
         }
         private void LoadVariables()
@@ -491,6 +403,7 @@ namespace Oxide.Plugins
             public int Blueprints;
             public int Explosive;
             public int Reports;
+            public List<GiftItem> Gifts;
             public DataStorageStats() { }
         }
         class DataStorageUsers
@@ -512,6 +425,7 @@ namespace Oxide.Plugins
             public int Raids;
             public int Kills;
             public int Farm;
+            public string LastSeen;
         }
         class DataStorageReports
         {
@@ -549,7 +463,7 @@ namespace Oxide.Plugins
         #endregion
 
         #region Oxidehooks
-        void OnServerInitialized()
+        private void OnServerInitialized()
         {
             LoadVariables();
             if (!config.AdmNotify.GUIReports) { Unsubscribe(nameof(OnServerCommand)); Unsubscribe(nameof(OnPlayerCommand)); }
@@ -557,6 +471,11 @@ namespace Oxide.Plugins
             StatData = Interface.Oxide.DataFileSystem.GetFile("VKBot");
             ReportsData = Interface.Oxide.DataFileSystem.GetFile("VKBotReports");
             LoadData();
+            if (statdata.Gifts == null)
+            {
+                statdata.Gifts = new List<GiftItem>() { new GiftItem { shortname = "supply.signal", count = 1, skinid = 0 }, new GiftItem { shortname = "pookie.bear", count = 2, skinid = 0 } };
+                StatData.WriteObject(statdata);
+            }
             cmd.AddChatCommand(config.CMDSet.CMDreport, this, "SendReport");
             CheckAdminID();
             if (NewWipe) WipeFunctions();
@@ -567,8 +486,8 @@ namespace Oxide.Plugins
             }
             if (config.GrWgSet.WgEnable)
             {
-                if (config.GrWgSet.WgToken == "none") { PrintWarning($"Ошибка обновления виджета! В файле конфигурации не указан ключ! Инструкция - https://goo.gl/LpZujf"); return; }
-                timer.Repeat(config.GrWgSet.UpdateTimer * 60, 0, () => { UpdateMultiServerStatus("widget"); });
+                if (config.GrWgSet.WgToken == "none") PrintWarning($"Ошибка обновления виджета! В файле конфигурации не указан ключ! Инструкция - https://goo.gl/LpZujf");
+                else timer.Repeat(config.GrWgSet.UpdateTimer * 60, 0, () => { UpdateMultiServerStatus("widget"); });
             }
             if (config.DGLSet.DLEnable && config.DGLSet.DLUrl != "none")
             {
@@ -579,8 +498,9 @@ namespace Oxide.Plugins
             }
             if (config.GrGifts.VKGGNotify) timer.Repeat(config.GrGifts.VKGGTimer * 60, 0, GiftNotifier);
             if (config.AdmNotify.PluginsCheckMsg) CheckPlugins();
+            if (config.AdmNotify.OxideCheckMsg) CheckOxideUpdate();
         }
-        void OnServerSave()
+        private void OnServerSave()
         {
             if (config.TopWPlayersPromo.TopWPlEnabled) VKBData.WriteObject(usersdata);
             if (config.StatusStg.UpdateStatus || config.DGLSet.DLEnable) StatData.WriteObject(statdata);
@@ -597,61 +517,54 @@ namespace Oxide.Plugins
             cmd.AddConsoleCommand("report.answer", this, "ReportAnswer");
             cmd.AddConsoleCommand("report.list", this, "ReportList");
             cmd.AddConsoleCommand("report.wipe", this, "ReportClear");
+            cmd.AddConsoleCommand("usersdata.update", this, "UpdateUsersData");
             jsonsettings = new JsonSerializerSettings();
             jsonsettings.Converters.Add(new KeyValuePairConverter());
         }
-        void Loaded() => LoadMessages();
-        void Unload()
+        private void Loaded() => LoadMessages();
+        private void Unload()
         {
             if (config.AdmNotify.SendReports) ReportsData.WriteObject(reportsdata);
             if (config.StatusStg.UpdateStatus || config.DGLSet.DLEnable) StatData.WriteObject(statdata);
             if (config.TopWPlayersPromo.TopWPlEnabled) VKBData.WriteObject(usersdata);
             if (config.BDayGift.BDayEnabled && BDayPlayers.Count > 0)
             {
-                foreach (var id in BDayPlayers)
-                {
-                    permission.RemoveUserGroup(id.ToString(), config.BDayGift.BDayGroup);
-                }
+                foreach (var id in BDayPlayers) permission.RemoveUserGroup(id.ToString(), config.BDayGift.BDayGroup);
                 BDayPlayers.Clear();
             }
             UnloadAllGUI();
         }
-        void OnNewSave(string filename) { NewWipe = true; }
-        void OnPlayerInit(BasePlayer player)
+        private void OnNewSave(string filename) => NewWipe = true;
+        private void OnPlayerInit(BasePlayer player)
         {
-            if (usersdata.VKUsersData.ContainsKey(player.userID))
+            if (usersdata.VKUsersData.ContainsKey(player.userID) && usersdata.VKUsersData[player.userID].Name != player.displayName)
             {
-                if (usersdata.VKUsersData[player.userID].Name != player.displayName)
-                {
-                    usersdata.VKUsersData[player.userID].Name = player.displayName;
-                    VKBData.WriteObject(usersdata);
-                }
+                usersdata.VKUsersData[player.userID].Name = player.displayName;
+                VKBData.WriteObject(usersdata);
             }
             if (OpenReportUI.Contains(player)) OpenReportUI.Remove(player);
         }
-        void OnPlayerSleepEnded(BasePlayer player)
+        private void OnPlayerSleepEnded(BasePlayer player)
         {
             if (!usersdata.VKUsersData.ContainsKey(player.userID)) return;
             if (!config.BDayGift.BDayEnabled) return;
             if (config.BDayGift.BDayEnabled && permission.GroupExists(config.BDayGift.BDayGroup))
             {
                 if (permission.UserHasGroup(player.userID.ToString(), config.BDayGift.BDayGroup)) return;
-                var today = DateTime.Now.ToString("d.M", CultureInfo.InvariantCulture);
                 var bday = usersdata.VKUsersData[player.userID].Bdate;
                 if (bday == null || bday == "noinfo") return;
-                string[] array = bday.Split('.');
-                if (array.Length == 3) bday.Remove(bday.Length - 5, 5);
-                if (bday == today)
+                if (bday.Split('.').Length == 3) bday.Remove(bday.Length - 5, 5);
+                if (bday == DateTime.Now.ToString("d.M", CultureInfo.InvariantCulture))
                 {
                     permission.AddUserGroup(player.userID.ToString(), config.BDayGift.BDayGroup);
-                    PrintToChat(player, string.Format(GetMsg("ПоздравлениеИгрока", player)));
+                    PrintToChat(player, string.Format(GetMsg("ПоздравлениеИгрока")));
                     Log("bday", $"Игрок {player.displayName} добавлен в группу {config.BDayGift.BDayGroup}");
                     BDayPlayers.Add(player.userID);
-                    if (config.BDayGift.BDayNotify) Server.Broadcast(string.Format(GetMsg("ДеньРожденияИгрока", player), player.displayName));
+                    if (config.BDayGift.BDayNotify) Server.Broadcast(string.Format(GetMsg("ДеньРожденияИгрока"), player.displayName));
                 }
             }
         }
-        void OnPlayerDisconnected(BasePlayer player, string reason)
+        private void OnPlayerDisconnected(BasePlayer player, string reason)
         {
             if (config.BDayGift.BDayEnabled && permission.GroupExists(config.BDayGift.BDayGroup))
             {
@@ -663,22 +576,22 @@ namespace Oxide.Plugins
                 }
             }
             if (OpenReportUI.Contains(player)) OpenReportUI.Remove(player);
+            if (usersdata.VKUsersData.ContainsKey(player.userID)) { usersdata.VKUsersData[player.userID].LastSeen = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss"); VKBData.WriteObject(usersdata); }
         }
-        void OnPlayerBanned(string name, ulong id, string address, string reason)
+        private void OnPlayerBanned(string name, ulong id, string address, string reason, string msg2 = null)
         {
-            string msg2 = null;
-            if (config.MltServSet.MSSEnable) { msg2 = $"[Сервер {config.MltServSet.ServerNumber.ToString()}] Игрок {name} ({id}) был забанен на сервере. Причина: {reason}. Ссылка на профиль стим: steamcommunity.com/profiles/{id}/"; }
-            else { msg2 = $"Игрок {name} ({id}) был забанен на сервере. Причина: {reason}. Ссылка на профиль стим: steamcommunity.com/profiles/{id}/"; }
+            if (config.MltServSet.MSSEnable) msg2 = $"[Сервер {config.MltServSet.ServerNumber.ToString()}] Игрок {name} ({id}) был забанен на сервере. Причина: {reason}. Ссылка на профиль стим: steamcommunity.com/profiles/{id}/";
+            else msg2 = $"Игрок {name} ({id}) был забанен на сервере. Причина: {reason}. Ссылка на профиль стим: steamcommunity.com/profiles/{id}/";
             if (config.AdmNotify.UserBannedTopic && config.AdmNotify.BannedTopicID != "null") AddComentToBoard(config.AdmNotify.BannedTopicID, msg2);
             if (config.AdmNotify.UserBannedMsg)
             {
-                if (usersdata.VKUsersData.ContainsKey(id) && usersdata.VKUsersData[id].Confirmed) { msg2 = msg2 + $" . Ссылка на профиль ВК: vk.com/id{usersdata.VKUsersData[id].VkID}"; }
+                if (usersdata.VKUsersData.ContainsKey(id) && usersdata.VKUsersData[id].Confirmed) msg2 = msg2 + $" . Ссылка на профиль ВК: vk.com/id{usersdata.VKUsersData[id].VkID}";
                 if (config.ChNotify.ChNotfEnabled && config.ChNotify.ChNotfSet.Contains("bans"))
                 {
                     SendChatMessage(config.ChNotify.ChatID, msg2);
                     if (config.ChNotify.AdmMsg) SendVkMessage(config.AdmNotify.VkID, msg2);
                 }
-                else { SendVkMessage(config.AdmNotify.VkID, msg2); }
+                else SendVkMessage(config.AdmNotify.VkID, msg2);
             }
         }
         #endregion
@@ -705,10 +618,7 @@ namespace Oxide.Plugins
         private void OnDispenserBonus(ResourceDispenser dispenser, BasePlayer player, Item item)
         {
             if ((config.StatusStg.UpdateStatus || config.DGLSet.DLEnable) && item.info.shortname == "sulfur.ore") statdata.SulfureGath = statdata.SulfureGath + item.amount;
-            if (config.TopWPlayersPromo.TopWPlEnabled)
-            {
-                if (usersdata.VKUsersData.ContainsKey(player.userID)) usersdata.VKUsersData[player.userID].Farm = usersdata.VKUsersData[player.userID].Farm + item.amount;
-            }
+            if (config.TopWPlayersPromo.TopWPlEnabled && usersdata.VKUsersData.ContainsKey(player.userID)) usersdata.VKUsersData[player.userID].Farm = usersdata.VKUsersData[player.userID].Farm + item.amount;
         }
         private void OnCollectiblePickup(Item item, BasePlayer player)
         {
@@ -717,10 +627,7 @@ namespace Oxide.Plugins
                 if (item.info.shortname == "wood") statdata.WoodGath = statdata.WoodGath + item.amount;
                 if (item.info.shortname == "sulfur.ore") statdata.SulfureGath = statdata.SulfureGath + item.amount;
             }
-            if (config.TopWPlayersPromo.TopWPlEnabled)
-            {
-                if (usersdata.VKUsersData.ContainsKey(player.userID)) usersdata.VKUsersData[player.userID].Farm = usersdata.VKUsersData[player.userID].Farm + item.amount;
-            }
+            if (config.TopWPlayersPromo.TopWPlEnabled && usersdata.VKUsersData.ContainsKey(player.userID)) usersdata.VKUsersData[player.userID].Farm = usersdata.VKUsersData[player.userID].Farm + item.amount;
         }
         private void OnRocketLaunched(BasePlayer player, BaseEntity entity)
         {
@@ -728,17 +635,7 @@ namespace Oxide.Plugins
         }
         private void OnExplosiveThrown(BasePlayer player, BaseEntity entity)
         {
-            if (config.StatusStg.UpdateStatus || config.DGLSet.DLEnable)
-            {
-                List<object> include = new List<object>()
-                {
-                "explosive.satchel.deployed",
-                "grenade.f1.deployed",
-                "grenade.beancan.deployed",
-                "explosive.timed.deployed"
-                };
-                if (include.Contains(entity.ShortPrefabName)) statdata.Explosive++;
-            }
+            if (config.StatusStg.UpdateStatus || config.DGLSet.DLEnable && ExplosiveList.Contains(entity.ShortPrefabName)) statdata.Explosive++;
         }
         void OnEntityDeath(BaseCombatEntity entity, HitInfo hitInfo)
         {
@@ -777,9 +674,7 @@ namespace Oxide.Plugins
             if (IsNPC(player)) return;
             if (!usersdata.VKUsersData.ContainsKey(attacker.userID)) return;
             if (!player.IsConnected) return;
-            bool Duelist = false;
-            if (Duel) Duelist = (bool)Duel?.Call("IsDuelPlayer", player);
-            if (Duelist) return;
+            if (Duel && (bool)Duel?.Call("IsDuelPlayer", player)) return;
             usersdata.VKUsersData[attacker.userID].Kills++;
         }
         #endregion
@@ -795,34 +690,32 @@ namespace Oxide.Plugins
                 statdata.WoodGath = 0;
                 statdata.Explosive = 0;
                 StatData.WriteObject(statdata);
-                NewWipe = false;
-                if (config.StatusStg.StatusSet == 1) { Update1ServerStatus(); }
-                if (config.StatusStg.StatusSet == 2) { UpdateMultiServerStatus("status"); }
+                if (config.StatusStg.StatusSet == 1) Update1ServerStatus();
+                if (config.StatusStg.StatusSet == 2) UpdateMultiServerStatus("status");
             }
             if (config.WipeStg.WPostMsgAdmin)
             {
                 string msg2 = "[VKBot] Сервер ";
                 if (config.MltServSet.MSSEnable) msg2 = msg2 + config.MltServSet.ServerNumber.ToString() + " ";
-                if (ConVar.Server.levelurl != string.Empty) { msg2 = msg2 + $"вайпнут. Установлена карта: {ConVar.Server.levelurl}."; }
-                else  { msg2 = msg2 + $"вайпнут. Установлена карта: {ConVar.Server.level}. Размер: {ConVar.Server.worldsize}. Сид: {ConVar.Server.seed}"; }
+                if (ConVar.Server.levelurl != string.Empty) msg2 = msg2 + $"вайпнут. Установлена карта: {ConVar.Server.levelurl}.";
+                else msg2 = msg2 + $"вайпнут. Установлена карта: {ConVar.Server.level}. Размер: {ConVar.Server.worldsize}. Сид: {ConVar.Server.seed}";
                 if (config.ChNotify.ChNotfEnabled && config.ChNotify.ChNotfSet.Contains("wipe"))
                 {
                     SendChatMessage(config.ChNotify.ChatID, msg2);
                     if (config.ChNotify.AdmMsg) SendVkMessage(config.AdmNotify.VkID, msg2);
                 }
-                else { SendVkMessage(config.AdmNotify.VkID, msg2); }
+                else SendVkMessage(config.AdmNotify.VkID, msg2);
             }
             if (config.WipeStg.WPostB)
             {
-                if (config.WipeStg.WPostAttB) { SendVkWall($"{config.WipeStg.WPostMsg}&attachments={config.WipeStg.WPostAtt}"); }
-                else { SendVkWall($"{config.WipeStg.WPostMsg}"); }
+                if (config.WipeStg.WPostAttB) SendVkWall($"{config.WipeStg.WPostMsg}&attachments={config.WipeStg.WPostAtt}");
+                else SendVkWall($"{config.WipeStg.WPostMsg}");
             }
             if (config.GrGifts.GiftsWipe)
             {
-                int amount = usersdata.VKUsersData.Count;
-                if (amount != 0)
+                if (usersdata.VKUsersData.Count != 0)
                 {
-                    for (int i = 0; i < amount; i++)
+                    for (int i = 0; i < usersdata.VKUsersData.Count; i++)
                     {
                         usersdata.VKUsersData.ElementAt(i).Value.GiftRecived = false;
                     }
@@ -834,12 +727,11 @@ namespace Oxide.Plugins
                 if (config.TopWPlayersPromo.TopPlPost || config.TopWPlayersPromo.TopPlPromoGift)
                 {
                     SendPromoMsgsAndPost();
-                    if (config.TopWPlayersPromo.TopPlPromoGift && config.TopWPlayersPromo.GenRandomPromo) SetRandomPromo();
+                    if (config.TopWPlayersPromo.GenRandomPromo) SetRandomPromo();
                 }
-                int amount = usersdata.VKUsersData.Count;
-                if (amount != 0)
+                if (usersdata.VKUsersData.Count != 0)
                 {
-                    for (int i = 0; i < amount; i++)
+                    for (int i = 0; i < usersdata.VKUsersData.Count; i++)
                     {
                         usersdata.VKUsersData.ElementAt(i).Value.Farm = 0;
                         usersdata.VKUsersData.ElementAt(i).Value.Kills = 0;
@@ -860,12 +752,11 @@ namespace Oxide.Plugins
             {
                 string wipedate = WipeDate();
                 string text = config.WipeStg.GrName.Replace("{wipedate}", wipedate);
-                string url = "https://api.vk.com/method/groups.edit?group_id=" + config.VKAPIT.GroupID + "&title=" + text + "&v=5.85&access_token=" + config.VKAPIT.VKTokenApp;
-                webrequest.Enqueue(url, null, (code, response) =>
+                webrequest.Enqueue("https://api.vk.com/method/groups.edit?group_id=" + config.VKAPIT.GroupID + "&title=" + text + "&" + apiver + "&access_token=" + config.VKAPIT.VKTokenApp, null, (code, response) =>
                 {
                     var json = JObject.Parse(response);
                     string Result = (string)json["response"];
-                    if (Result == "1") { PrintWarning($"Новое имя группы - {text}"); }
+                    if (Result == "1") PrintWarning($"Новое имя группы - {text}");
                     else
                     {
                         PrintWarning("Ошибка смены имени группы. Логи - /oxide/logs/VKBot/");
@@ -882,17 +773,15 @@ namespace Oxide.Plugins
         private void WipeAlertsSend()
         {
             List<string> UserList = new List<string>();
-            var BannedUsers = ServerUsers.BanListString();
             string userlist = "";
             int usercount = 0;
-            int amount = usersdata.VKUsersData.Count;
-            if (amount != 0)
+            if (usersdata.VKUsersData.Count != 0)
             {
-                for (int i = 0; i < amount; i++)
+                for (int i = 0; i < usersdata.VKUsersData.Count; i++)
                 {
                     if (config.WipeStg.WCMDIgnore || usersdata.VKUsersData.ElementAt(i).Value.WipeMsg)
                     {
-                        if (!BannedUsers.Contains(usersdata.VKUsersData.ElementAt(i).Value.UserID.ToString()))
+                        if (!ServerUsers.BanListString().Contains(usersdata.VKUsersData.ElementAt(i).Value.UserID.ToString()))
                         {
                             if (usercount == 100)
                             {
@@ -910,10 +799,7 @@ namespace Oxide.Plugins
             if (userlist == "" && UserList.Count == 0) { PrintWarning($"Список адресатов рассылки о вайпе пуст."); return; }
             if (UserList.Count > 0)
             {
-                foreach (var list in UserList)
-                {
-                    SendVkMessage(list, config.WipeStg.WMsgText);
-                }
+                foreach (var list in UserList) SendVkMessage(list, config.WipeStg.WMsgText);
             }
             SendVkMessage(userlist, config.WipeStg.WMsgText);
         }
@@ -922,23 +808,28 @@ namespace Oxide.Plugins
         #region MainMethods
         private void UStatus(ConsoleSystem.Arg arg)
         {
-            if (arg.IsAdmin != true) { return; }
+            if (arg.IsAdmin != true) return;
             if (config.StatusStg.UpdateStatus)
             {
-                if (config.StatusStg.StatusSet == 1) { Update1ServerStatus(); }
-                if (config.StatusStg.StatusSet == 2) { UpdateMultiServerStatus("status"); }
+                if (config.StatusStg.StatusSet == 1) Update1ServerStatus();
+                if (config.StatusStg.StatusSet == 2) UpdateMultiServerStatus("status");
             }
-            else { PrintWarning($"Функция обновления статуса отключена."); }
+            else PrintWarning($"Функция обновления статуса отключена.");
+        }
+        private void UpdateUsersData(ConsoleSystem.Arg arg)
+        {
+            if (arg.IsAdmin != true) return;
+            DeleteOldUsers(arg.Args?[0]);
         }
         private void UWidget(ConsoleSystem.Arg arg)
         {
-            if (arg.IsAdmin != true) { return; }
+            if (arg.IsAdmin != true) return;
             if (config.GrWgSet.WgEnable)
             {
                 if (config.GrWgSet.WgToken == "none") { PrintWarning($"Ошибка! В файле конфигурации не указан ключ!"); return; }
                 UpdateMultiServerStatus("widget");
             }
-            else { PrintWarning($"Функция обновления статуса отключена."); }
+            else PrintWarning($"Функция обновления статуса отключена.");
         }
         private string PrepareStatus(string input, string target)
         {
@@ -965,10 +856,10 @@ namespace Oxide.Plugins
             temp = statdata.Explosive.ToString();
             if (target == "status" && config.StatusStg.EmojiCounterList.Contains("explosivecounter")) temp = EmojiCounters(temp);
             if (input.Contains("{explosivecounter}")) text = text.Replace("{explosivecounter}", temp);
-            temp = (string)WipeDate();
+            temp = WipeDate();
             if (target == "status" && config.StatusStg.EmojiCounterList.Contains("wipedate")) temp = EmojiCounters(temp);
             if (input.Contains("{wipedate}")) text = text.Replace("{wipedate}", temp);
-            temp = config.StatusStg.connecturl;
+            temp = config.StatusStg.Connecturl;
             if (target == "status" && config.StatusStg.EmojiCounterList.Contains("connect")) temp = EmojiCounters(temp);
             if (input.Contains("{connect}")) text = text.Replace("{connect}", temp);
             temp = config.StatusStg.StatusUT;
@@ -983,31 +874,31 @@ namespace Oxide.Plugins
         {
             if (config.AdmNotify.SendReports)
             {
-                if (args.Length > 0) { CreateReport(player, string.Join(" ", args.Skip(0).ToArray())); }
+                if (args.Length > 0) CreateReport(player, string.Join(" ", args.Skip(0).ToArray()));
                 else
                 {
-                    if (config.AdmNotify.GUIReports) { ReportGUI(player); }
-                    else { PrintToChat(player, string.Format(GetMsg("КомандаРепорт", player), config.AdmNotify.ReportsNotify)); return; }
+                    if (config.AdmNotify.GUIReports) ReportGUI(player);
+                    else { PrintToChat(player, string.Format(GetMsg("КомандаРепорт"), config.AdmNotify.ReportsNotify)); return; }
                 }
             }
-            else { PrintToChat(player, string.Format(GetMsg("ФункцияОтключена", player))); }
+            else PrintToChat(player, string.Format(GetMsg("ФункцияОтключена")));
         }
         private void CheckReport(BasePlayer player, string[] text)
         {
             if (text != null && text.Count() < 2) return;
-            ulong uid = 0;
+            ulong uid;
             if (ulong.TryParse(text[1], out uid))
             {
                 var utarget = BasePlayer.FindByID(uid);
-                if (utarget != null && text.Count() > 2) { CreateReport(player, string.Join(" ", text.Skip(2).ToArray()), utarget); }
-                else { CreateReport(player, string.Join(" ", text.Skip(1).ToArray())); }
+                if (utarget != null && text.Count() > 2) CreateReport(player, string.Join(" ", text.Skip(2).ToArray()), utarget);
+                else CreateReport(player, string.Join(" ", text.Skip(1).ToArray()));
             }
-            else { CreateReport(player, string.Join(" ", text.Skip(1).ToArray())); }
+            else CreateReport(player, string.Join(" ", text.Skip(1).ToArray()));
         }
         private void CreateReport(BasePlayer player, string text, BasePlayer target = null)
         {
             string reportplayer = "";
-            if (target != null) { reportplayer = reportplayer + "Жалоба на игрока " + target.displayName + " (" + "steamcommunity.com/profiles/" + target.userID + "/) "; }
+            if (target != null) reportplayer = reportplayer + "Жалоба на игрока " + target.displayName + " (" + "steamcommunity.com/profiles/" + target.userID + "/) ";
             string reporttext = "[VKBot]";
             statdata.Reports = statdata.Reports + 1;
             int reportid = statdata.Reports;
@@ -1016,8 +907,8 @@ namespace Oxide.Plugins
             reporttext = reporttext + " " + player.displayName + " " + "(" + player.UserIDString + ")";
             if (usersdata.VKUsersData.ContainsKey(player.userID))
             {
-                if (usersdata.VKUsersData[player.userID].Confirmed) { reporttext = reporttext + ". ВК: vk.com/id" + usersdata.VKUsersData[player.userID].VkID; }
-                else { reporttext = reporttext + ". ВК: vk.com/id" + usersdata.VKUsersData[player.userID].VkID + " (не подтвержден)"; }
+                if (usersdata.VKUsersData[player.userID].Confirmed) reporttext = reporttext + ". ВК: vk.com/id" + usersdata.VKUsersData[player.userID].VkID;
+                else reporttext = reporttext + ". ВК: vk.com/id" + usersdata.VKUsersData[player.userID].VkID + " (не подтвержден)";
             }
             reporttext = reporttext + " ID репорта: " + reportid;
             reporttext = reporttext + reportplayer;
@@ -1027,7 +918,7 @@ namespace Oxide.Plugins
                 SendChatMessage(config.ChNotify.ChatID, reporttext);
                 if (config.ChNotify.AdmMsg) SendVkMessage(config.AdmNotify.VkID, reporttext);
             }
-            else { SendVkMessage(config.AdmNotify.VkID, reporttext); }
+            else SendVkMessage(config.AdmNotify.VkID, reporttext);
             reportsdata.VKReportsData.Add(reportid, new REPORT
             {
                 UserID = player.userID,
@@ -1036,24 +927,21 @@ namespace Oxide.Plugins
             });
             ReportsData.WriteObject(reportsdata);
             Log("Log", $"{player.displayName} ({player.userID}): написал администратору: {reporttext}");
-            PrintToChat(player, string.Format(GetMsg("РепортОтправлен", player), config.AdmNotify.ReportsNotify));
+            PrintToChat(player, string.Format(GetMsg("РепортОтправлен"), config.AdmNotify.ReportsNotify));
         }
         private void CheckVkUser(BasePlayer player, string url)
         {
             string Userid = null;
             string[] arr1 = url.Split('/');
-            int num = arr1.Length - 1;
-            string vkname = arr1[num];
-            string url2 = "https://api.vk.com/method/users.get?user_ids=" + vkname + "&v=5.85&fields=bdate&access_token=" + config.VKAPIT.VKToken;
-            webrequest.Enqueue(url2, null, (code, response) => {
+            string vkname = arr1[arr1.Length - 1];
+            webrequest.Enqueue("https://api.vk.com/method/users.get?user_ids=" + vkname + "&" + apiver + "&fields=bdate&access_token=" + config.VKAPIT.VKToken, null, (code, response) => {
                 if (!response.Contains("error"))
                 {
                     var json = JObject.Parse(response);
                     Userid = (string)json["response"][0]["id"];
-                    string bdate = "noinfo";
-                    bdate = (string)json["response"][0]["bdate"];
-                    if (Userid != null) { AddVKUser(player, Userid, bdate); }
-                    else { PrintToChat(player, "Ошибка обработки вашей ссылки ВК, обратитесь к администратору."); }
+                    string bdate = (string)json["response"][0]["bdate"] ?? "noinfo";
+                    if (Userid != null) AddVKUser(player, Userid, bdate);
+                    else PrintToChat(player, "Ошибка обработки вашей ссылки ВК, обратитесь к администратору.");
                 }
                 else
                 {
@@ -1077,15 +965,16 @@ namespace Oxide.Plugins
                     Bdate = bdate,
                     Farm = 0,
                     Kills = 0,
-                    Raids = 0
+                    Raids = 0,
+                    LastSeen = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")
                 });
                 VKBData.WriteObject(usersdata);
                 SendConfCode(usersdata.VKUsersData[player.userID].VkID, $"Для подтверждения вашего ВК профиля введите в игровой чат команду /vk confirm {usersdata.VKUsersData[player.userID].ConfirmCode}", player);
             }
             else
             {
-                if (Userid == usersdata.VKUsersData[player.userID].VkID && usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильДобавленИПодтвержден", player))); return; }
-                if (Userid == usersdata.VKUsersData[player.userID].VkID && !usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильДобавлен", player))); return; }
+                if (Userid == usersdata.VKUsersData[player.userID].VkID && usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильДобавленИПодтвержден"))); return; }
+                if (Userid == usersdata.VKUsersData[player.userID].VkID && !usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильДобавлен"))); return; }
                 usersdata.VKUsersData[player.userID].Name = player.displayName;
                 usersdata.VKUsersData[player.userID].VkID = Userid;
                 usersdata.VKUsersData[player.userID].Confirmed = false;
@@ -1101,8 +990,8 @@ namespace Oxide.Plugins
             {
                 if (args[0] == "add")
                 {
-                    if (args.Length == 1) { PrintToChat(player, string.Format(GetMsg("ДоступныеКоманды", player))); return; }
-                    if (!args[1].Contains("vk.com/")) { PrintToChat(player, string.Format(GetMsg("НеправильнаяСсылка", player))); return; }
+                    if (args.Length == 1) { PrintToChat(player, string.Format(GetMsg("ДоступныеКоманды"))); return; }
+                    if (!args[1].Contains("vk.com/")) { PrintToChat(player, string.Format(GetMsg("НеправильнаяСсылка"))); return; }
                     CheckVkUser(player, args[1]);
                 }
                 if (args[0] == "confirm")
@@ -1111,76 +1000,71 @@ namespace Oxide.Plugins
                     {
                         if (usersdata.VKUsersData.ContainsKey(player.userID))
                         {
-                            if (usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильДобавленИПодтвержден", player))); return; }
+                            if (usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильДобавленИПодтвержден"))); return; }
                             if (args[1] == usersdata.VKUsersData[player.userID].ConfirmCode.ToString())
                             {
                                 usersdata.VKUsersData[player.userID].Confirmed = true;
                                 VKBData.WriteObject(usersdata);
-                                PrintToChat(player, string.Format(GetMsg("ПрофильПодтвержден", player)));
-                                if (config.GrGifts.VKGroupGifts) { PrintToChat(player, string.Format(GetMsg("ОповещениеОПодарках", player), config.GrGifts.VKGroupUrl)); }
+                                PrintToChat(player, string.Format(GetMsg("ПрофильПодтвержден")));
+                                if (config.GrGifts.VKGroupGifts) PrintToChat(player, string.Format(GetMsg("ОповещениеОПодарках"), config.GrGifts.VKGroupUrl));
                             }
-                            else { PrintToChat(player, string.Format(GetMsg("НеверныйКод", player))); }
+                            else PrintToChat(player, string.Format(GetMsg("НеверныйКод")));
                         }
-                        else { PrintToChat(player, string.Format(GetMsg("ПрофильНеДобавлен", player))); }
+                        else PrintToChat(player, string.Format(GetMsg("ПрофильНеДобавлен")));
                     }
                     else
                     {
-                        if (!usersdata.VKUsersData.ContainsKey(player.userID)) { PrintToChat(player, string.Format(GetMsg("ПрофильНеДобавлен", player))); return; }
-                        if (usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильДобавленИПодтвержден", player))); return; }
+                        if (!usersdata.VKUsersData.ContainsKey(player.userID)) { PrintToChat(player, string.Format(GetMsg("ПрофильНеДобавлен"))); return; }
+                        if (usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильДобавленИПодтвержден"))); return; }
                         SendConfCode(usersdata.VKUsersData[player.userID].VkID, $"Для подтверждения вашего ВК профиля введите в игровой чат команду /vk confirm {usersdata.VKUsersData[player.userID].ConfirmCode}", player);
                     }
                 }
-                if (args[0] == "gift") VKGift(player);
+                if (args[0] == "gift") FixedGifts(player);
                 if (args[0] == "wipealerts") WAlert(player);
                 if (args[0] != "add" && args[0] != "gift" && args[0] != "confirm")
                 {
-                    PrintToChat(player, string.Format(GetMsg("ДоступныеКоманды", player)));
-                    if (config.GrGifts.VKGroupGifts) PrintToChat(player, string.Format(GetMsg("ОповещениеОПодарках", player), config.GrGifts.VKGroupUrl));
+                    PrintToChat(player, string.Format(GetMsg("ДоступныеКоманды")));
+                    if (config.GrGifts.VKGroupGifts) PrintToChat(player, string.Format(GetMsg("ОповещениеОПодарках"), config.GrGifts.VKGroupUrl));
                 }
             }
-            else { StartVKBotMainGUI(player); }
+            else StartVKBotMainGUI(player);
         }
         private void WAlert(BasePlayer player)
         {
-            if (!usersdata.VKUsersData.ContainsKey(player.userID)) { PrintToChat(player, string.Format(GetMsg("ПрофильНеДобавлен", player))); return; }
-            if (!usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильНеПодтвержден", player))); return; }
-            if (config.WipeStg.WCMDIgnore) { PrintToChat(player, string.Format(GetMsg("АвтоОповещенияОвайпе", player))); return; }
+            if (!usersdata.VKUsersData.ContainsKey(player.userID)) { PrintToChat(player, string.Format(GetMsg("ПрофильНеДобавлен"))); return; }
+            if (!usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильНеПодтвержден"))); return; }
+            if (config.WipeStg.WCMDIgnore) { PrintToChat(player, string.Format(GetMsg("АвтоОповещенияОвайпе"))); return; }
             if (usersdata.VKUsersData[player.userID].WipeMsg)
             {
                 usersdata.VKUsersData[player.userID].WipeMsg = false;
                 VKBData.WriteObject(usersdata);
-                PrintToChat(player, string.Format(GetMsg("ПодпискаОтключена", player)));
+                PrintToChat(player, string.Format(GetMsg("ПодпискаОтключена")));
             }
             else
             {
                 usersdata.VKUsersData[player.userID].WipeMsg = true;
                 VKBData.WriteObject(usersdata);
-                PrintToChat(player, string.Format(GetMsg("ПодпискаВключена", player)));
+                PrintToChat(player, string.Format(GetMsg("ПодпискаВключена")));
             }
         }
         private void VKGift(BasePlayer player)
         {
             if (config.GrGifts.VKGroupGifts)
             {
-                if (!usersdata.VKUsersData.ContainsKey(player.userID)) { PrintToChat(player, string.Format(GetMsg("ПрофильНеДобавлен", player))); return; }
-                if (!usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильНеПодтвержден", player))); return; }
-                if (usersdata.VKUsersData[player.userID].GiftRecived) { PrintToChat(player, string.Format(GetMsg("НаградаУжеПолучена", player))); return; }
-                string url = $"https://api.vk.com/method/groups.isMember?group_id={config.VKAPIT.GroupID}&user_id={usersdata.VKUsersData[player.userID].VkID}&v=5.85&access_token={config.VKAPIT.VKToken}";
-                try
-                {
-                    webrequest.Enqueue(url, null, (code, response) => {
-                        if (response == null || !response.Contains("response")) return;
-                        var json = JObject.Parse(response);
-                        if (json == null) return;
-                        string Result = (string)json["response"];
-                        if (Result == null) return;
-                        GetGift(code, Result, player);
-                    }, this);
-                }
-                catch { }
-                
+                if (!usersdata.VKUsersData.ContainsKey(player.userID)) { PrintToChat(player, string.Format(GetMsg("ПрофильНеДобавлен"))); return; }
+                if (!usersdata.VKUsersData[player.userID].Confirmed) { PrintToChat(player, string.Format(GetMsg("ПрофильНеПодтвержден"))); return; }
+                if (usersdata.VKUsersData[player.userID].GiftRecived) { PrintToChat(player, string.Format(GetMsg("НаградаУжеПолучена"))); return; }
+                webrequest.Enqueue($"https://api.vk.com/method/groups.isMember?group_id={config.VKAPIT.GroupID}&user_id={usersdata.VKUsersData[player.userID].VkID}&" + apiver + $"&access_token={config.VKAPIT.VKToken}", null, (code, response) => {
+                    if (response == null || !response.Contains("response")) return;
+                    var json = JObject.Parse(response);
+                    if (json == null) return;
+                    string Result = (string)json["response"];
+                    if (Result == null) return;
+                    GetGift(code, Result, player);
+                }, this);
+
             }
-            else { PrintToChat(player, string.Format(GetMsg("ФункцияОтключена", player))); }
+            else PrintToChat(player, string.Format(GetMsg("ФункцияОтключена")));
         }
         private void GetGift(int code, string Result, BasePlayer player)
         {
@@ -1188,23 +1072,15 @@ namespace Oxide.Plugins
             {
                 if (config.GrGifts.VKGroupGiftCMD == "none")
                 {
-                    int FreeSlots = 24 - player.inventory.containerMain.itemList.Count;
-                    if (FreeSlots >= config.GrGifts.VKGroupGiftList.Count)
+                    if ((24 - player.inventory.containerMain.itemList.Count) >= statdata.Gifts.Count)
                     {
                         usersdata.VKUsersData[player.userID].GiftRecived = true;
                         VKBData.WriteObject(usersdata);
-                        PrintToChat(player, string.Format(GetMsg("НаградаПолучена", player)));
-                        if (config.GrGifts.GiftsBool) Server.Broadcast(string.Format(GetMsg("ПолучилНаграду", player), player.displayName, config.GrGifts.VKGroupUrl));
-                        for (int i = 0; i < config.GrGifts.VKGroupGiftList.Count; i++)
-                        {
-                            if (Convert.ToInt32(config.GrGifts.VKGroupGiftList.ElementAt(i).Value) > 0)
-                            {
-                                Item gift = ItemManager.CreateByName(config.GrGifts.VKGroupGiftList.ElementAt(i).Key, Convert.ToInt32(config.GrGifts.VKGroupGiftList.ElementAt(i).Value));
-                                gift.MoveToContainer(player.inventory.containerMain, -1, false);
-                            }
-                        }
+                        PrintToChat(player, string.Format(GetMsg("НаградаПолучена")));
+                        if (config.GrGifts.GiftsBool) Server.Broadcast(string.Format(GetMsg("ПолучилНаграду"), player.displayName, config.GrGifts.VKGroupUrl));
+                        foreach (GiftItem gf in statdata.Gifts) { Item gift = ItemManager.CreateByName(gf.shortname, gf.count, gf.skinid); gift.MoveToContainer(player.inventory.containerMain, -1, false); }
                     }
-                    else { PrintToChat(player, string.Format(GetMsg("НетМеста", player))); }
+                    else PrintToChat(player, string.Format(GetMsg("НетМеста")));
                 }
                 else
                 {
@@ -1212,11 +1088,11 @@ namespace Oxide.Plugins
                     rust.RunServerCommand(cmd);
                     usersdata.VKUsersData[player.userID].GiftRecived = true;
                     VKBData.WriteObject(usersdata);
-                    PrintToChat(player, string.Format(GetMsg("НаградаПолученаКоманда", player), config.GrGifts.GiftCMDdesc));
-                    if (config.GrGifts.GiftsBool) Server.Broadcast(string.Format(GetMsg("ПолучилНаграду", player), player.displayName, config.GrGifts.VKGroupUrl));
+                    PrintToChat(player, string.Format(GetMsg("НаградаПолученаКоманда"), config.GrGifts.GiftCMDdesc));
+                    if (config.GrGifts.GiftsBool) Server.Broadcast(string.Format(GetMsg("ПолучилНаграду"), player.displayName, config.GrGifts.VKGroupUrl));
                 }
             }
-            else { PrintToChat(player, string.Format(GetMsg("НеВступилВГруппу", player), config.GrGifts.VKGroupUrl)); }
+            else PrintToChat(player, string.Format(GetMsg("НеВступилВГруппу"), config.GrGifts.VKGroupUrl));
         }
         private void GiftNotifier()
         {
@@ -1224,10 +1100,10 @@ namespace Oxide.Plugins
             {
                 foreach (var pl in BasePlayer.activePlayerList)
                 {
-                    if (!usersdata.VKUsersData.ContainsKey(pl.userID)) { PrintToChat(pl, string.Format(GetMsg("ОповещениеОПодарках", pl), config.GrGifts.VKGroupUrl)); }
+                    if (!usersdata.VKUsersData.ContainsKey(pl.userID)) PrintToChat(pl, string.Format(GetMsg("ОповещениеОПодарках"), config.GrGifts.VKGroupUrl));
                     else
                     {
-                        if (!usersdata.VKUsersData[pl.userID].GiftRecived) PrintToChat(pl, string.Format(GetMsg("ОповещениеОПодарках", pl), config.GrGifts.VKGroupUrl));
+                        if (!usersdata.VKUsersData[pl.userID].GiftRecived) PrintToChat(pl, string.Format(GetMsg("ОповещениеОПодарках"), config.GrGifts.VKGroupUrl));
                     }
                 }
             }
@@ -1235,6 +1111,7 @@ namespace Oxide.Plugins
         void Update1ServerStatus()
         {
             string status = PrepareStatus(config.StatusStg.StatusText, "status");
+            StatusCheck(status);
             SendVkStatus(status);
         }
         void UpdateMultiServerStatus(string target)
@@ -1265,11 +1142,11 @@ namespace Oxide.Plugins
                         {
                             name = config.MltServSet.Server1name + " ";
                             if (target == "widget") name = config.MltServSet.Server1name;
-                        }                        
+                        }
                         server1 = name + online.ToString() + "/" + slots.ToString();
                         if (target == "widget")
                         {
-                            SList.Add(1, new ServerInfo() { name = name, online = online, slots = slots, sleepers = jsonresponse3["sleepers"].ToString(), map = jsonresponse3["level"].ToString()});
+                            SList.Add(1, new ServerInfo() { name = name, online = online, slots = slots, sleepers = jsonresponse3["sleepers"].ToString(), map = jsonresponse3["level"].ToString() });
                         }
                     }
                 }, this);
@@ -1293,7 +1170,7 @@ namespace Oxide.Plugins
                         {
                             name = ", " + config.MltServSet.Server2name + " ";
                             if (target == "widget") name = config.MltServSet.Server2name;
-                        }                        
+                        }
                         server2 = name + online.ToString() + "/" + slots.ToString();
                         if (target == "widget")
                         {
@@ -1321,7 +1198,7 @@ namespace Oxide.Plugins
                         {
                             name = ", " + config.MltServSet.Server3name + " ";
                             if (target == "widget") name = config.MltServSet.Server3name;
-                        }                        
+                        }
                         server3 = name + online.ToString() + "/" + slots.ToString();
                         if (target == "widget")
                         {
@@ -1349,7 +1226,7 @@ namespace Oxide.Plugins
                         {
                             name = ", " + config.MltServSet.Server4name + " ";
                             if (target == "widget") name = config.MltServSet.Server4name;
-                        }                        
+                        }
                         server4 = name + online.ToString() + "/" + slots.ToString();
                         if (target == "widget")
                         {
@@ -1377,7 +1254,7 @@ namespace Oxide.Plugins
                         {
                             name = ", " + config.MltServSet.Server5name + " ";
                             if (target == "widget") name = config.MltServSet.Server5name;
-                        }                        
+                        }
                         server5 = name + online.ToString() + "/" + slots.ToString();
                         if (target == "widget")
                         {
@@ -1408,12 +1285,12 @@ namespace Oxide.Plugins
                         UpdateLabelMultiServer(text);
                     }
                 }
-                else { PrintWarning("Текст для статуса/обложки пуст, не заполнен конфиг или не получены данные с Rust:IO"); }
+                else PrintWarning("Текст для статуса/обложки пуст, не заполнен конфиг или не получены данные с Rust:IO");
             });
         }
         private void MsgAdmin(ConsoleSystem.Arg arg)
         {
-            if (arg.IsAdmin != true) { return; }
+            if (arg.IsAdmin != true) return;
             if (arg.Args == null)
             {
                 PrintWarning($"Текст сообщения отсутсвует, правильная команда |sendmsgadmin сообщение|.");
@@ -1423,8 +1300,8 @@ namespace Oxide.Plugins
             if (args.Length > 0)
             {
                 string text = null;
-                if (config.MltServSet.MSSEnable) { text = $"[VKBot msgadmin] [Сервер {config.MltServSet.ServerNumber}] " + string.Join(" ", args.Skip(0).ToArray()); }
-                else { text = $"[VKBot msgadmin] " + string.Join(" ", args.Skip(0).ToArray()); }
+                if (config.MltServSet.MSSEnable) text = $"[VKBot msgadmin] [Сервер {config.MltServSet.ServerNumber}] " + string.Join(" ", args.Skip(0).ToArray());
+                else text = $"[VKBot msgadmin] " + string.Join(" ", args.Skip(0).ToArray());
                 SendVkMessage(config.AdmNotify.VkID, text);
                 Log("Log", $"|sendmsgadmin| Отправлено новое сообщение администратору: ({text})");
             }
@@ -1440,7 +1317,7 @@ namespace Oxide.Plugins
             string answer = string.Join(" ", arg.Args.Skip(1).ToArray());
             if (usersdata.VKUsersData.ContainsKey(reportsdata.VKReportsData[reportid].UserID) && usersdata.VKUsersData[reportsdata.VKReportsData[reportid].UserID].Confirmed)
             {
-                string msg = string.Format(GetMsg("ОтветНаРепортВК", 0)) + answer;
+                string msg = string.Format(GetMsg("ОтветНаРепортВК")) + answer;
                 SendVkMessage(usersdata.VKUsersData[reportsdata.VKReportsData[reportid].UserID].VkID, msg);
                 PrintWarning($"Ваш ответ был отправлен игроку в ВК.");
                 reportsdata.VKReportsData.Remove(reportid);
@@ -1451,17 +1328,17 @@ namespace Oxide.Plugins
                 BasePlayer reciver = BasePlayer.FindByID(reportsdata.VKReportsData[reportid].UserID);
                 if (reciver != null)
                 {
-                    PrintToChat(reciver, string.Format(GetMsg("ОтветНаРепортЧат", reciver)) + answer);
+                    PrintToChat(reciver, string.Format(GetMsg("ОтветНаРепортЧат")) + answer);
                     PrintWarning($"Ваш ответ был отправлен игроку в игровой чат.");
                     reportsdata.VKReportsData.Remove(reportid);
                     ReportsData.WriteObject(reportsdata);
                 }
-                else { PrintWarning($"Игрок отправивший репорт оффлайн. Невозможно отправить ответ."); }
+                else PrintWarning($"Игрок отправивший репорт оффлайн. Невозможно отправить ответ.");
             }
         }
         private void ReportList(ConsoleSystem.Arg arg)
         {
-            if (arg.IsAdmin != true) { return; }
+            if (arg.IsAdmin != true) return;
             if (reportsdata.VKReportsData.Count == 0) { PrintWarning($"База репортов пуста"); return; }
             foreach (var report in reportsdata.VKReportsData)
             {
@@ -1472,7 +1349,7 @@ namespace Oxide.Plugins
         }
         private void ReportClear(ConsoleSystem.Arg arg)
         {
-            if (arg.IsAdmin != true) { return; }
+            if (arg.IsAdmin != true) return;
             if (reportsdata.VKReportsData.Count == 0) { PrintWarning($"База репортов пуста"); return; }
             reportsdata.VKReportsData.Clear();
             ReportsData.WriteObject(reportsdata);
@@ -1488,31 +1365,24 @@ namespace Oxide.Plugins
             if (args.Length > 0)
             {
                 bool returned = false;
-                int amount = usersdata.VKUsersData.Count;
-                if (amount != 0)
+                foreach (var pl in usersdata.VKUsersData)
                 {
-                    for (int i = 0; i < amount; i++)
+                    if (pl.Value.Name.ToLower().Contains(args[0]) || pl.Value.UserID.ToString() == (args[0]) || pl.Value.VkID == (args[0]))
                     {
-                        if (usersdata.VKUsersData.ElementAt(i).Value.Name.ToLower().Contains(args[0]) || usersdata.VKUsersData.ElementAt(i).Value.UserID.ToString() == (args[0]) || usersdata.VKUsersData.ElementAt(i).Value.VkID == (args[0]))
-                        {
-                            returned = true;
-                            string text = "Никнейм: " + usersdata.VKUsersData.ElementAt(i).Value.Name + "\nSTEAM: steamcommunity.com/profiles/" + usersdata.VKUsersData.ElementAt(i).Value.UserID + "/";
-                            if (usersdata.VKUsersData.ElementAt(i).Value.Confirmed) { text = text + "\nVK: vk.com/id" + usersdata.VKUsersData.ElementAt(i).Value.VkID; }
-                            else { text = text + "\nVK: vk.com/id" + usersdata.VKUsersData.ElementAt(i).Value.VkID + " (не подтвержден)"; }
-                            if (usersdata.VKUsersData.ElementAt(i).Value.Bdate != null && usersdata.VKUsersData.ElementAt(i).Value.Bdate != "noinfo") text = text + "\nДата рождения: " + usersdata.VKUsersData.ElementAt(i).Value.Bdate;
-                            if (config.TopWPlayersPromo.TopWPlEnabled) text = text + "\nРазрушено строений: " + usersdata.VKUsersData.ElementAt(i).Value.Raids + "\nУбито игроков: " + usersdata.VKUsersData.ElementAt(i).Value.Kills + "\nНафармил: " + usersdata.VKUsersData.ElementAt(i).Value.Farm;
-                            Puts(text);
-                        }
+                        returned = true;
+                        string text = "Никнейм: " + pl.Value.Name + "\nSTEAM: steamcommunity.com/profiles/" + pl.Value.UserID + "/";
+                        if (pl.Value.Confirmed) text = text + "\nVK: vk.com/id" + pl.Value.VkID;
+                        else text = text + "\nVK: vk.com/id" + pl.Value.VkID + " (не подтвержден)";
+                        if (pl.Value.Bdate != null && pl.Value.Bdate != "noinfo") text = text + "\nДата рождения: " + pl.Value.Bdate;
+                        if (config.TopWPlayersPromo.TopWPlEnabled) text = text + "\nРазрушено строений: " + pl.Value.Raids + "\nУбито игроков: " + pl.Value.Kills + "\nНафармил: " + pl.Value.Farm;
+                        Puts(text);
                     }
                 }
                 if (!returned) Puts("Не найдено игроков с таким именем / steamid / vkid");
             }
         }
-        private void SendConfCode(string reciverID, string msg, BasePlayer player)
-        {
-            string url = "https://api.vk.com/method/messages.send?user_ids=" + reciverID + "&message=" + msg + "&v=5.85&access_token=" + config.VKAPIT.VKToken;
-            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Код подтверждения", player), this);
-        }
+        private void SendConfCode(string reciverID, string msg, BasePlayer player) => webrequest.Enqueue("https://api.vk.com/method/messages.send?user_ids=" + reciverID + "&message=" + msg + "&" + apiver + "&random_id=" + RandomId() + "&access_token=" + config.VKAPIT.VKToken, null, (code, response) => GetCallback(code, response, "Код подтверждения", player), this);
+
         private void CheckPlugins()
         {
             var loadedPlugins = plugins.GetAll().Where(pl => !pl.IsCorePlugin).ToArray();
@@ -1520,27 +1390,21 @@ namespace Oxide.Plugins
             var unloadedPluginErrors = new Dictionary<string, string>();
             foreach (var loader in Interface.Oxide.GetPluginLoaders())
             {
-                foreach (var name in loader.ScanDirectory(Interface.Oxide.PluginDirectory).Except(loadedPluginNames))
-                {
-                    string msg;
-                    unloadedPluginErrors[name] = (loader.PluginErrors.TryGetValue(name, out msg)) ? msg : "Unloaded";
-                }
+                string msg;
+                foreach (var name in loader.ScanDirectory(Interface.Oxide.PluginDirectory).Except(loadedPluginNames)) { unloadedPluginErrors[name] = loader.PluginErrors.TryGetValue(name, out msg) ? msg : "Unloaded"; }
             }
             if (unloadedPluginErrors.Count > 0)
             {
                 string text = null;
-                if (config.MltServSet.MSSEnable) { text = $"[VKBot] [Сервер {config.MltServSet.ServerNumber}] Произошла ошибка загрузки следующих плагинов:"; }
-                else { text = $"[VKBot]  Произошла ошибка загрузки следующих плагинов:"; }
-                foreach (var pluginerror in unloadedPluginErrors)
-                {
-                    text = text + " " + pluginerror.Key + ".";
-                }
+                if (config.MltServSet.MSSEnable) text = $"[VKBot] [Сервер {config.MltServSet.ServerNumber}] Произошла ошибка загрузки следующих плагинов:";
+                else text = $"[VKBot]  Произошла ошибка загрузки следующих плагинов:";
+                foreach (var pluginerror in unloadedPluginErrors) text = text + " " + pluginerror.Key + ".";
                 if (config.ChNotify.ChNotfEnabled && config.ChNotify.ChNotfSet.Contains("plugins"))
                 {
                     SendChatMessage(config.ChNotify.ChatID, text);
                     if (config.ChNotify.AdmMsg) SendVkMessage(config.AdmNotify.VkID, text);
                 }
-                else { SendVkMessage(config.AdmNotify.VkID, text); }
+                else SendVkMessage(config.AdmNotify.VkID, text);
             }
         }
         private void PrepareWidgetCode(Dictionary<int, ServerInfo> Slist)
@@ -1564,111 +1428,57 @@ namespace Oxide.Plugins
         #endregion
 
         #region VKAPI
-        private void SendWidget(string widget)
-        {
-            string url = "https://api.vk.com/method/appWidgets.update?type=table" + "&code=" + URLEncode(widget) + "&v=5.85&access_token=" + config.GrWgSet.WgToken;
-            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Виджет"), this);
-        }
-        private void SendChatMessage(string chatid, string msg)
-        {
-            string url = "https://api.vk.com/method/messages.send?chat_id=" + chatid + "&message=" + URLEncode(msg) + "&v=5.85&access_token=" + config.ChNotify.ChNotfToken;
-            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Сообщение в беседу"), this);
-        }
-        private void SendVkMessage(string reciverID, string msg)
-        {
-            string url = "https://api.vk.com/method/messages.send?user_ids=" + reciverID + "&message=" + URLEncode(msg) + "&v=5.85&access_token=" + config.VKAPIT.VKToken;
-            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Сообщение"), this);
-        }
-        private void SendVkWall(string msg)
-        {
-            string url = "https://api.vk.com/method/wall.post?owner_id=-" + config.VKAPIT.GroupID + "&message=" + URLEncode(msg) + "&from_group=1&v=5.85&access_token=" + config.VKAPIT.VKTokenApp;
-            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Пост"), this);
-        }
-        private void SendVkStatus(string msg)
-        {
-            StatusCheck(msg);
-            string url = "https://api.vk.com/method/status.set?group_id=" + config.VKAPIT.GroupID + "&text=" + URLEncode(msg) + "&v=5.85&access_token=" + config.VKAPIT.VKTokenApp;
-            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Статус"), this);
-        }
-        private void AddComentToBoard(string topicid, string msg)
-        {
-            string url = "https://api.vk.com/method/board.createComment?group_id=" + config.VKAPIT.GroupID + "&topic_id=" + URLEncode(topicid) + "&from_group=1&message=" + msg + "&v=5.85&access_token=" + config.VKAPIT.VKTokenApp;
-            webrequest.Enqueue(url, null, (code, response) => GetCallback(code, response, "Комментарий в обсуждения"), this);
-        }        
+        private void SendWidget(string widget) => webrequest.Enqueue("https://api.vk.com/method/appWidgets.update?type=table" + "&code=" + URLEncode(widget) + "&"+apiver+"&access_token=" + config.GrWgSet.WgToken, null, (code, response) => GetCallback(code, response, "Виджет"), this);
+        private void SendChatMessage(string chatid, string msg) => webrequest.Enqueue("https://api.vk.com/method/messages.send?chat_id=" + chatid + "&message=" + URLEncode(msg) + "&"+apiver+ "&random_id=" + RandomId() +"&access_token=" + config.ChNotify.ChNotfToken, null, (code, response) => GetCallback(code, response, "Сообщение в беседу"), this);
+        private void SendVkMessage(string reciverID, string msg) => webrequest.Enqueue("https://api.vk.com/method/messages.send?user_ids=" + reciverID + "&message=" + URLEncode(msg) + "&"+apiver + "&random_id=" + RandomId() + "&access_token=" + config.VKAPIT.VKToken, null, (code, response) => GetCallback(code, response, "Сообщение"), this);
+        private void SendVkWall(string msg) => webrequest.Enqueue("https://api.vk.com/method/wall.post?owner_id=-" + config.VKAPIT.GroupID + "&message=" + URLEncode(msg) + "&from_group=1&"+apiver+"&access_token=" + config.VKAPIT.VKTokenApp, null, (code, response) => GetCallback(code, response, "Пост"), this);
+        private void SendVkStatus(string msg) => webrequest.Enqueue("https://api.vk.com/method/status.set?group_id=" + config.VKAPIT.GroupID + "&text=" + URLEncode(msg) + "&" + apiver + "&access_token=" + config.VKAPIT.VKTokenApp, null, (code, response) => GetCallback(code, response, "Статус"), this);
+        private void AddComentToBoard(string topicid, string msg) => webrequest.Enqueue("https://api.vk.com/method/board.createComment?group_id=" + config.VKAPIT.GroupID + "&topic_id=" + URLEncode(topicid) + "&from_group=1&message=" + msg + "&"+apiver+"&access_token=" + config.VKAPIT.VKTokenApp, null, (code, response) => GetCallback(code, response, "Комментарий в обсуждения"), this);
+        private string RandomId() => random.Next(Int32.MinValue, Int32.MaxValue).ToString();
         #endregion
 
         #region VKBotAPI
         string GetUserVKId(ulong userid)
         {
-            if (usersdata.VKUsersData.ContainsKey(userid) && usersdata.VKUsersData[userid].Confirmed)
-            {
-                var BannedUsers = ServerUsers.BanListString();
-                if (!BannedUsers.Contains(userid.ToString())) { return usersdata.VKUsersData[userid].VkID; }
-                else { return null; }
-            }
-            else { return null; }
+            if (!usersdata.VKUsersData.ContainsKey(userid) || !usersdata.VKUsersData[userid].Confirmed) return null;
+            if (BannedUsers.Contains(userid.ToString())) return null;
+            return usersdata.VKUsersData[userid].VkID;
         }
         string GetUserLastNotice(ulong userid)
         {
-            if (usersdata.VKUsersData.ContainsKey(userid) && usersdata.VKUsersData[userid].Confirmed) { return usersdata.VKUsersData[userid].LastRaidNotice; }
-            else { return null; }
+            if (!usersdata.VKUsersData.ContainsKey(userid) || !usersdata.VKUsersData[userid].Confirmed) return null;
+            return usersdata.VKUsersData[userid].LastRaidNotice;
         }
-        string AdminVkID()
-        {
-            return config.AdmNotify.VkID;
-        }
+        string AdminVkID() => config.AdmNotify.VkID;
         private void VKAPIChatMsg(string text)
         {
-            if (config.ChNotify.ChNotfEnabled) { SendChatMessage(config.ChNotify.ChatID, text); }
-            else { PrintWarning($"Сообщение не отправлено в беседу. Данная функция отключена. Текст сообщения: {text}"); }
+            if (config.ChNotify.ChNotfEnabled) SendChatMessage(config.ChNotify.ChatID, text);
+            else PrintWarning($"Сообщение не отправлено в беседу. Данная функция отключена. Текст сообщения: {text}");
         }
         private void VKAPISaveLastNotice(ulong userid, string lasttime)
         {
-            if (usersdata.VKUsersData.ContainsKey(userid))
-            {
-                usersdata.VKUsersData[userid].LastRaidNotice = lasttime;
-                VKBData.WriteObject(usersdata);
-            }
-            else { return; }
+            if (usersdata.VKUsersData.ContainsKey(userid)) { usersdata.VKUsersData[userid].LastRaidNotice = lasttime; VKBData.WriteObject(usersdata); }
         }
         private void VKAPIWall(string text, string attachments, bool atimg)
         {
-            if (atimg)
-            {
-                SendVkWall($"{text}&attachments={attachments}");
-                Log("vkbotapi", $"Отправлен новый пост на стену: ({text}&attachments={attachments})");
-            }
-            else
-            {
-                SendVkWall($"{text}");
-                Log("vkbotapi", $"Отправлен новый пост на стену: ({text})");
-            }
+            if (atimg) { SendVkWall($"{text}&attachments={attachments}"); Log("vkbotapi", $"Отправлен новый пост на стену: ({text}&attachments={attachments})"); }
+            else { SendVkWall($"{text}"); Log("vkbotapi", $"Отправлен новый пост на стену: ({text})"); }
         }
         private void VKAPIMsg(string text, string attachments, string reciverID, bool atimg)
         {
-            if (atimg)
-            {
-                SendVkMessage(reciverID, $"{text}&attachment={attachments}");
-                Log("vkbotapi", $"Отправлено новое сообщение пользователю {reciverID}: ({text}&attachments={attachments})");
-            }
-            else
-            {
-                SendVkMessage(reciverID, $"{text}");
-                Log("vkbotapi", $"Отправлено новое сообщение пользователю {reciverID}: ({text})");
-            }
+            if (atimg) { SendVkMessage(reciverID, $"{text}&attachment={attachments}"); Log("vkbotapi", $"Отправлено новое сообщение пользователю {reciverID}: ({text}&attachments={attachments})"); }
+            else { SendVkMessage(reciverID, $"{text}"); Log("vkbotapi", $"Отправлено новое сообщение пользователю {reciverID}: ({text})"); }
         }
         private void VKAPIStatus(string msg)
         {
+            StatusCheck(msg);
             SendVkStatus(msg);
             Log("vkbotapi", $"Отправлен новый статус: {msg}");
         }
         #endregion
 
         #region Helpers
-        void Log(string filename, string text)
-        {
-            LogToFile(filename, $"[{DateTime.Now}] {text}", this);
-        }
+        void Log(string filename, string text) => LogToFile(filename, $"[{DateTime.Now}] {text}", this);
         void GetCallback(int code, string response, string type, BasePlayer player = null)
         {
             if (!response.Contains("error")) { Puts($"{type} отправлен(о): {response}"); if (type == "Код подтверждения" && player != null) StartCodeSendedGUI(player); }
@@ -1676,58 +1486,37 @@ namespace Oxide.Plugins
             {
                 if (type == "Код подтверждения")
                 {
-                    if (response.Contains("Can't send messages for users without permission") && player != null) { StartVKBotHelpVKGUI(player); }
-                    else { Log("errorconfcode", $"Ошибка отправки кода подтверждения. Ответ сервера ВК: {response}"); }
+                    if (response.Contains("Can't send messages for users without permission") && player != null) StartVKBotHelpVKGUI(player);
+                    else Log("errorconfcode", $"Ошибка отправки кода подтверждения. Ответ сервера ВК: {response}");
                 }
                 else
                 {
                     PrintWarning($"{type} не отправлен(о). Файлы лога: /oxide/logs/VKBot/");
-                    Log("Errors", $"{type} не отправлен(о). Ошибка: {response}");
+                    Log("Errors", $"{type} не отправлен(о). Ошибка: " + response);
                 }
             }
         }
         private string EmojiCounters(string counter)
         {
             var chars = counter.ToCharArray();
+            List<object> digits = new List<object>() { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
             string emoji = "";
             for (int ctr = 0; ctr < chars.Length; ctr++)
-            {
-                List<object> digits = new List<object>()
-                {
-                    "0",
-                    "1",
-                    "2",
-                    "3",
-                    "4",
-                    "5",
-                    "6",
-                    "7",
-                    "8",
-                    "9"
-                };
+            {                
                 if (digits.Contains(chars[ctr].ToString()))
                 {
                     string replace = chars[ctr] + "⃣";
                     emoji = emoji + replace;
                 }
-                else { emoji = emoji + chars[ctr]; }
+                else emoji = emoji + chars[ctr];
             }
             return emoji;
         }
-        private string WipeDate()
-        {
-            DateTime LastWipe = SaveRestore.SaveCreatedTime.ToLocalTime();
-            string LastWipeInfo = LastWipe.ToString("dd.MM");
-            return LastWipeInfo;
-        }
+        private string WipeDate() => SaveRestore.SaveCreatedTime.ToLocalTime().ToString("dd.MM");
         private string GetOnline()
         {
             string onlinecounter = BasePlayer.activePlayerList.Count.ToString();
-            if (config.StatusStg.OnlWmaxslots)
-            {
-                var slots = ConVar.Server.maxplayers.ToString();
-                onlinecounter = onlinecounter + "/" + slots.ToString();
-            }
+            if (config.StatusStg.OnlWmaxslots) onlinecounter = onlinecounter + "/" + ConVar.Server.maxplayers.ToString();
             return onlinecounter;
         }
         private string URLEncode(string input)
@@ -1748,10 +1537,8 @@ namespace Oxide.Plugins
         }
         private bool IsNPC(BasePlayer player)
         {
-            if (player is NPCPlayer)
-                return true;
-            if (!(player.userID >= 76560000000000000L || player.userID <= 0L))
-                return true;
+            if (player is NPCPlayer) return true;
+            if (!(player.userID >= 76560000000000000L || player.userID <= 0L))  return true;
             return false;
         }
         private void CheckAdminID()
@@ -1766,9 +1553,9 @@ namespace Oxide.Plugins
         }
         private static string GetColor(string hex)
         {
-            if (string.IsNullOrEmpty(hex)) { hex = "#FFFFFFFF"; }
+            if (string.IsNullOrEmpty(hex)) hex = "#FFFFFFFF";
             var str = hex.Trim('#');
-            if (str.Length == 6) { str += "FF"; }
+            if (str.Length == 6) str += "FF";
             if (str.Length != 8)
             {
                 throw new Exception(hex);
@@ -1781,6 +1568,45 @@ namespace Oxide.Plugins
             Color color = new Color32(r, g, b, a);
             return $"{color.r:F2} {color.g:F2} {color.b:F2} {color.a:F2}";
         }
+        private void DeleteOldUsers(string days = null)
+        {
+            int ddays = 30;
+            int t;
+            if (days != null && Int32.TryParse(days, out t)) ddays = t;
+            int deleted = 0;
+            List<ulong> ForDelete = new List<ulong>();
+            foreach (var user in usersdata.VKUsersData)
+            {
+                if (user.Value.LastSeen == null) ForDelete.Add(user.Key);
+                else
+                {
+                    DateTime LNT;
+                    if (DateTime.TryParseExact(user.Value.LastSeen, "dd.MM.yyyy HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out LNT) && DateTime.Now.Subtract(LNT).Days >= ddays) ForDelete.Add(user.Key);
+                }
+            }
+            foreach (var d in ForDelete)
+            {
+                usersdata.VKUsersData.Remove(d); deleted++;
+            }
+            if (deleted > 0) { PrintWarning($"Удалено устаревших профилей игроков из базы VKBot: {deleted}"); VKBData.WriteObject(usersdata); }
+            else PrintWarning($"Нет профилей для удаления.");
+        }
+        private void CheckOxideUpdate()
+        {
+            string currentver = Manager.GetPlugin("RustCore").Version.ToString();
+            webrequest.Enqueue("https://umod.org/games/rust.json", null, (code, response) => 
+            {
+                if (code == 200 || response != null)
+                {
+                    var json = JObject.Parse(response);
+                    if (json == null) return;
+                    string latestver = (string)json["latest_release_version"];
+                    if (latestver == null) return;
+                    if (latestver != currentver && !OxideUpdateSended) { SendVkMessage(config.AdmNotify.VkID, $"Доступно новое обновление Oxide {latestver}. https://umod.org/games/rust"); OxideUpdateSended = true; }
+                }
+            }, this);
+            timer.Once(3600f, () => { CheckOxideUpdate(); });
+        }
         #endregion
 
         #region TopWipePlayersStatsAndPromo
@@ -1792,17 +1618,13 @@ namespace Oxide.Plugins
             int amount = usersdata.VKUsersData.Count;
             if (amount != 0)
             {
-                for (int i = 0; i < amount; i++)
+                foreach (var pl in usersdata.VKUsersData)
                 {
-                    if (usersdata.VKUsersData.ElementAt(i).Value.Raids > max && !BannedUsers.Contains(usersdata.VKUsersData.ElementAt(i).Value.UserID.ToString()))
-                    {
-                        max = usersdata.VKUsersData.ElementAt(i).Value.Raids;
-                        TopID = usersdata.VKUsersData.ElementAt(i).Value.UserID;
-                    }
+                    if (pl.Value.Confirmed && pl.Value.Raids > max && !BannedUsers.Contains(pl.Key.ToString())) { max = pl.Value.Raids; TopID = pl.Key; }
                 }
             }
-            if (max != 0) { return TopID; }
-            else { return 0; }
+            if (max != 0) return TopID;
+            else return 0;
         }
         private ulong GetTopKiller()
         {
@@ -1811,17 +1633,13 @@ namespace Oxide.Plugins
             int amount = usersdata.VKUsersData.Count;
             if (amount != 0)
             {
-                for (int i = 0; i < amount; i++)
+                foreach (var pl in usersdata.VKUsersData)
                 {
-                    if (usersdata.VKUsersData.ElementAt(i).Value.Kills > max && !BannedUsers.Contains(usersdata.VKUsersData.ElementAt(i).Value.UserID.ToString()))
-                    {
-                        max = usersdata.VKUsersData.ElementAt(i).Value.Kills;
-                        TopID = usersdata.VKUsersData.ElementAt(i).Value.UserID;
-                    }
+                    if (pl.Value.Confirmed && pl.Value.Kills > max && !BannedUsers.Contains(pl.Key.ToString())) { max = pl.Value.Kills; TopID = pl.Key; }
                 }
             }
-            if (max != 0) { return TopID; }
-            else { return 0; }
+            if (max != 0) return TopID;
+            else return 0;
         }
         private ulong GetTopFarmer()
         {
@@ -1830,17 +1648,13 @@ namespace Oxide.Plugins
             int amount = usersdata.VKUsersData.Count;
             if (amount != 0)
             {
-                for (int i = 0; i < amount; i++)
+                foreach (var pl in usersdata.VKUsersData)
                 {
-                    if (usersdata.VKUsersData.ElementAt(i).Value.Farm > max && !BannedUsers.Contains(usersdata.VKUsersData.ElementAt(i).Value.UserID.ToString()))
-                    {
-                        max = usersdata.VKUsersData.ElementAt(i).Value.Farm;
-                        TopID = usersdata.VKUsersData.ElementAt(i).Value.UserID;
-                    }
+                    if (pl.Value.Confirmed && pl.Value.Farm > max && !BannedUsers.Contains(pl.Key.ToString())) { max = pl.Value.Farm; TopID = pl.Key; }
                 }
             }
-            if (max != 0) { return TopID; }
-            else { return 0; }
+            if (max != 0) return TopID;
+            else return 0;
         }
         private void SendPromoMsgsAndPost()
         {
@@ -1861,26 +1675,23 @@ namespace Oxide.Plugins
                     SendVkWall(text);
                 }
             }
-            if (traider != 0 && config.TopWPlayersPromo.TopPlPromoGift && usersdata.VKUsersData.ContainsKey(traider) && usersdata.VKUsersData[traider].Confirmed)
+            if (traider != 0 && config.TopWPlayersPromo.TopPlPromoGift)
             {
-                string text = string.Format(GetMsg("СообщениеИгрокуТопПромо", 0), "рейдер", config.TopWPlayersPromo.TopRaiderPromo, config.TopWPlayersPromo.StoreUrl);
+                string text = string.Format(GetMsg("СообщениеИгрокуТопПромо"), "рейдер", config.TopWPlayersPromo.TopRaiderPromo, config.TopWPlayersPromo.StoreUrl);
                 if (config.TopWPlayersPromo.TopRaiderPromoAtt != "none") text = text + "&attachments=" + config.TopWPlayersPromo.TopRaiderPromoAtt;
-                string reciver = usersdata.VKUsersData[traider].VkID;
-                SendVkMessage(reciver, text);
+                SendVkMessage(usersdata.VKUsersData[traider].VkID, text);
             }
-            if (tkiller != 0 && config.TopWPlayersPromo.TopPlPromoGift && usersdata.VKUsersData.ContainsKey(tkiller) && usersdata.VKUsersData[tkiller].Confirmed)
+            if (tkiller != 0 && config.TopWPlayersPromo.TopPlPromoGift)
             {
-                string text = string.Format(GetMsg("СообщениеИгрокуТопПромо", 0), "киллер", config.TopWPlayersPromo.TopKillerPromo, config.TopWPlayersPromo.StoreUrl);
+                string text = string.Format(GetMsg("СообщениеИгрокуТопПромо"), "киллер", config.TopWPlayersPromo.TopKillerPromo, config.TopWPlayersPromo.StoreUrl);
                 if (config.TopWPlayersPromo.TopKillerPromoAtt != "none") text = text + "&attachments=" + config.TopWPlayersPromo.TopKillerPromoAtt;
-                string reciver = usersdata.VKUsersData[tkiller].VkID;
-                SendVkMessage(reciver, text);
+                SendVkMessage(usersdata.VKUsersData[tkiller].VkID, text);
             }
-            if (tfarmer != 0 && config.TopWPlayersPromo.TopPlPromoGift && usersdata.VKUsersData.ContainsKey(tfarmer) && usersdata.VKUsersData[tfarmer].Confirmed)
+            if (tfarmer != 0 && config.TopWPlayersPromo.TopPlPromoGift)
             {
-                string text = string.Format(GetMsg("СообщениеИгрокуТопПромо", 0), "фармер", config.TopWPlayersPromo.TopFarmerPromo, config.TopWPlayersPromo.StoreUrl);
+                string text = string.Format(GetMsg("СообщениеИгрокуТопПромо"), "фармер", config.TopWPlayersPromo.TopFarmerPromo, config.TopWPlayersPromo.StoreUrl);
                 if (config.TopWPlayersPromo.TopFarmerPromoAtt != "none") text = text + "&attachments=" + config.TopWPlayersPromo.TopFarmerPromoAtt;
-                string reciver = usersdata.VKUsersData[tfarmer].VkID;
-                SendVkMessage(reciver, text);
+                SendVkMessage(usersdata.VKUsersData[tfarmer].VkID, text);
             }
         }
         private string PromoGenerator()
@@ -1918,7 +1729,7 @@ namespace Oxide.Plugins
                     url = url + "t1=" + PrepareStatus(config.DGLSet.DLText1, "label");
                     count++;
                 }
-                else { url = url + "&t1=" + PrepareStatus(config.DGLSet.DLText1, "label"); }
+                else url = url + "&t1=" + PrepareStatus(config.DGLSet.DLText1, "label");
             }
             if (config.DGLSet.DLText2 != "none")
             {
@@ -1927,7 +1738,7 @@ namespace Oxide.Plugins
                     url = url + "t2=" + PrepareStatus(config.DGLSet.DLText2, "label");
                     count++;
                 }
-                else { url = url + "&t2=" + PrepareStatus(config.DGLSet.DLText2, "label"); }
+                else url = url + "&t2=" + PrepareStatus(config.DGLSet.DLText2, "label");
             }
             if (config.DGLSet.DLText3 != "none")
             {
@@ -1936,7 +1747,7 @@ namespace Oxide.Plugins
                     url = url + "t3=" + PrepareStatus(config.DGLSet.DLText3, "label");
                     count++;
                 }
-                else { url = url + "&t3=" + PrepareStatus(config.DGLSet.DLText3, "label"); }
+                else url = url + "&t3=" + PrepareStatus(config.DGLSet.DLText3, "label");
             }
             if (config.DGLSet.DLText4 != "none")
             {
@@ -1945,7 +1756,7 @@ namespace Oxide.Plugins
                     url = url + "t4=" + PrepareStatus(config.DGLSet.DLText4, "label");
                     count++;
                 }
-                else { url = url + "&t4=" + PrepareStatus(config.DGLSet.DLText4, "label"); }
+                else url = url + "&t4=" + PrepareStatus(config.DGLSet.DLText4, "label");
             }
             if (config.DGLSet.DLText5 != "none")
             {
@@ -1954,7 +1765,7 @@ namespace Oxide.Plugins
                     url = url + "t5=" + PrepareStatus(config.DGLSet.DLText5, "label");
                     count++;
                 }
-                else { url = url + "&t5=" + PrepareStatus(config.DGLSet.DLText5, "label"); }
+                else url = url + "&t5=" + PrepareStatus(config.DGLSet.DLText5, "label");
             }
             if (config.DGLSet.DLText6 != "none")
             {
@@ -1963,7 +1774,7 @@ namespace Oxide.Plugins
                     url = url + "t6=" + PrepareStatus(config.DGLSet.DLText6, "label");
                     count++;
                 }
-                else { url = url + "&t6=" + PrepareStatus(config.DGLSet.DLText6, "label"); }
+                else url = url + "&t6=" + PrepareStatus(config.DGLSet.DLText6, "label");
             }
             if (config.DGLSet.DLText7 != "none")
             {
@@ -1972,7 +1783,7 @@ namespace Oxide.Plugins
                     url = url + "t7=" + PrepareStatus(config.DGLSet.DLText7, "label");
                     count++;
                 }
-                else { url = url + "&t7=" + PrepareStatus(config.DGLSet.DLText7, "label"); }
+                else url = url + "&t7=" + PrepareStatus(config.DGLSet.DLText7, "label");
             }
             if (config.TopWPlayersPromo.TopWPlEnabled && config.DGLSet.TPLabel)
             {
@@ -1987,24 +1798,20 @@ namespace Oxide.Plugins
         }
         private void DLResult(int code, string response)
         {
-            if (response.Contains("good")) { Puts("Обложка группы обновлена"); }
-            else { Puts("Прозошла ошибка обновления обложки, проверьте настройки."); }
+            if (response.Contains("good")) Puts("Обложка группы обновлена");
+            else Puts("Прозошла ошибка обновления обложки, проверьте настройки.");
         }
         private void ULabel(ConsoleSystem.Arg arg)
         {
-            if (arg.IsAdmin != true) { return; }
+            if (arg.IsAdmin != true) return;
             if (config.DGLSet.DLEnable && config.DGLSet.DLUrl != "none")
             {
-                if (config.DGLSet.DLMSEnable) { UpdateMultiServerStatus("label"); }
-                else { UpdateVKLabel(); }
+                if (config.DGLSet.DLMSEnable) UpdateMultiServerStatus("label");
+                else UpdateVKLabel();
             }
-            else { PrintWarning($"Функция обновления обложки отключена, или не указана ссылка на скрипт обновления."); }
+            else PrintWarning($"Функция обновления обложки отключена, или не указана ссылка на скрипт обновления.");
         }
-        private void UpdateLabelMultiServer(string text)
-        {
-            string url = config.DGLSet.DLUrl + "?t1=" + text;
-            webrequest.Enqueue(url, null, (code, response) => DLResult(code, response), this);
-        }
+        private void UpdateLabelMultiServer(string text) => webrequest.Enqueue(config.DGLSet.DLUrl + "?t1=" + text, null, (code, response) => DLResult(code, response), this);
         #endregion
 
         #region GUIBuilder
@@ -2123,15 +1930,17 @@ namespace Oxide.Plugins
         }
         private void StartVKBotAddVKGUI(BasePlayer player)
         {
-            CuiElementContainer container = new CuiElementContainer();
-            container.Add(BPanel("AddVKUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true));//Окно добавления профиля ВК        
-            container.Add(Image("AddVKUI", config.GUISet.Logo, "0.01 0.6", "0.99 0.99"));//Лого сервера
-            container.Add(Text("AddVKUI", "1 1 1 1", UserName(player.displayName), TextAnchor.MiddleCenter, 18, "0.01 0.5", "0.99 0.6"));//Никнейм игрока            
-            container.Add(Text("AddVKUI", "1 1 1 1", "Укажите ссылку на страницу ВК\nв поле ниже и нажмите ENTER", TextAnchor.MiddleCenter, 18, "0.01 0.33", "0.99 0.5"));//Описание
-            container.Add(Panel("back", "0 0.115 0 0.65", "0.01 0.13", "0.99 0.3", "AddVKUI"));//Подложка
-            container.Add(Input("addvkinput", "back", 18, "vk.menugui addvkgui.addvk "));//Поле ввода
-            container.Add(Button("AddVKcloseGUI", "AddVKUI", "vk.menugui addvkgui.close", GetColor(config.GUISet.bCloseColor), "0.01 0.01", "0.99 0.06"));//Кнопка закрыть
-            container.Add(Text("AddVKcloseGUI", "1 1 1 1", "Закрыть", TextAnchor.MiddleCenter, 18));//Текст кнопки закрыть
+            CuiElementContainer container = new CuiElementContainer
+            {
+                BPanel("AddVKUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true),
+                Image("AddVKUI", config.GUISet.Logo, "0.01 0.6", "0.99 0.99"),
+                Text("AddVKUI", "1 1 1 1", UserName(player.displayName), TextAnchor.MiddleCenter, 18, "0.01 0.5", "0.99 0.6"),          
+                Text("AddVKUI", "1 1 1 1", "Укажите ссылку на страницу ВК\nв поле ниже и нажмите ENTER", TextAnchor.MiddleCenter, 18, "0.01 0.33", "0.99 0.5"),
+                Panel("back", "0 0.115 0 0.65", "0.01 0.13", "0.99 0.3", "AddVKUI"),
+                Input("addvkinput", "back", 18, "vk.menugui addvkgui.addvk "),
+                Button("AddVKcloseGUI", "AddVKUI", "vk.menugui addvkgui.close", GetColor(config.GUISet.BCloseColor), "0.01 0.01", "0.99 0.06"),
+                Text("AddVKcloseGUI", "1 1 1 1", "Закрыть", TextAnchor.MiddleCenter, 18)
+            };
             CuiHelper.AddUi(player, container);
         }
         private void StartVKBotMainGUI(BasePlayer player)
@@ -2139,67 +1948,73 @@ namespace Oxide.Plugins
             bool NeedRemove = false;
             string addvkbuutontext = "Добавить профиль ВК";
             string addvkbuttoncommand = "vk.menugui maingui.addvk";
-            string addvkbuttoncolor = GetColor(config.GUISet.bMenuColor);
+            string addvkbuttoncolor = GetColor(config.GUISet.BMenuColor);
             string giftvkbuutontext = "Получить награду за\nвступление в группу ВК";
             string giftvkbuttoncommand = "vk.menugui maingui.gift";
-            string giftvkbuttoncolor = GetColor(config.GUISet.bMenuColor);
+            string giftvkbuttoncolor = GetColor(config.GUISet.BMenuColor);
             string addvkbuttonanmax = "0.99 0.5";
-            CuiElementContainer container = new CuiElementContainer();
-            container.Add(BPanel("MainUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true));//Главное окно             
-            container.Add(Image("MainUI", config.GUISet.Logo, "0.01 0.6", "0.99 0.99"));//Лого сервера
-            container.Add(Text("MainUI", "1 1 1 1", UserName(player.displayName), TextAnchor.MiddleCenter, 18, "0.01 0.5", "0.99 0.6"));//Никнейм игрока
+            CuiElementContainer container = new CuiElementContainer
+            {
+                BPanel("MainUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true),            
+                Image("MainUI", config.GUISet.Logo, "0.01 0.6", "0.99 0.99"),
+                Text("MainUI", "1 1 1 1", UserName(player.displayName), TextAnchor.MiddleCenter, 18, "0.01 0.5", "0.99 0.6")
+            };
             if (usersdata.VKUsersData.ContainsKey(player.userID))
             {
                 if (!usersdata.VKUsersData[player.userID].Confirmed) { addvkbuutontext = "Подтвердить профиль"; addvkbuttoncommand = "vk.menugui maingui.confirm"; NeedRemove = true; addvkbuttonanmax = "0.49 0.5"; }
                 else { addvkbuutontext = "Профиль добавлен"; addvkbuttoncommand = ""; addvkbuttoncolor = "0 0.115 0 0.65"; }
                 if (usersdata.VKUsersData[player.userID].GiftRecived) { giftvkbuutontext = "Награда за вступление\nв группу ВК получена"; giftvkbuttoncommand = ""; giftvkbuttoncolor = "0 0.115 0 0.65"; }
             }
-            container.Add(Button("VKAddButton", "MainUI", addvkbuttoncommand, addvkbuttoncolor, "0.01 0.43", addvkbuttonanmax));//Кнопка добавления профиля
-            container.Add(Text("VKAddButton", "1 1 1 1", addvkbuutontext, TextAnchor.MiddleCenter, 18));//Текст кнопки добавления профиля
+            container.Add(Button("VKAddButton", "MainUI", addvkbuttoncommand, addvkbuttoncolor, "0.01 0.43", addvkbuttonanmax));
+            container.Add(Text("VKAddButton", "1 1 1 1", addvkbuutontext, TextAnchor.MiddleCenter, 18));
             if (NeedRemove)
             {
-                container.Add(Button("VKRemoveButton", "MainUI", "vk.menugui maingui.removevk", addvkbuttoncolor, "0.51 0.43", "0.99 0.5"));//Кнопка удаления профиля
-                container.Add(Text("VKRemoveButton", "1 1 1 1", "Удалить профиль", TextAnchor.MiddleCenter, 18));//Текст кнопки удалить профиль
+                container.Add(Button("VKRemoveButton", "MainUI", "vk.menugui maingui.removevk", addvkbuttoncolor, "0.51 0.43", "0.99 0.5"));
+                container.Add(Text("VKRemoveButton", "1 1 1 1", "Удалить профиль", TextAnchor.MiddleCenter, 18));
             }
             if (config.GrGifts.VKGroupGifts)
             {
-                container.Add(Button("VKGiftButton", "MainUI", giftvkbuttoncommand, giftvkbuttoncolor, "0.01 0.3", "0.99 0.42"));//Кнопка получения награды
-                container.Add(Text("VKGiftButton", "1 1 1 1", giftvkbuutontext, TextAnchor.MiddleCenter, 18));//Текст кнопки получения награды
+                container.Add(Button("VKGiftButton", "MainUI", giftvkbuttoncommand, giftvkbuttoncolor, "0.01 0.3", "0.99 0.42"));
+                container.Add(Text("VKGiftButton", "1 1 1 1", giftvkbuutontext, TextAnchor.MiddleCenter, 18));
             }
             if (!config.WipeStg.WCMDIgnore)
             {
                 string text = "Подписаться на\nоповещения о вайпе в ВК";
                 if (usersdata.VKUsersData.ContainsKey(player.userID) && usersdata.VKUsersData[player.userID].WipeMsg) { text = "Отписаться от\nопвещений о вайпе в ВК"; }
-                container.Add(Button("VKWipeAlertsButton", "MainUI", "vk.menugui maingui.walert", GetColor(config.GUISet.bMenuColor), "0.01 0.18", "0.99 0.29"));//Кнопка подписки на оповещения о вайпе
-                container.Add(Text("VKWipeAlertsButton", "1 1 1 1", text, TextAnchor.MiddleCenter, 18));//Текст кнопки подписки на оповещения о вайпе
+                container.Add(Button("VKWipeAlertsButton", "MainUI", "vk.menugui maingui.walert", GetColor(config.GUISet.BMenuColor), "0.01 0.18", "0.99 0.29"));
+                container.Add(Text("VKWipeAlertsButton", "1 1 1 1", text, TextAnchor.MiddleCenter, 18));
             }
-            container.Add(Text("MainUI", "1 1 1 1", $"Группа сервера в ВК:\n<color=#049906>{config.GrGifts.VKGroupUrl}</color>", TextAnchor.MiddleCenter, 18, "0.01 0.06", "0.99 0.17"));//Ссылка на группу сервера          
-            container.Add(Button("VKcloseGUI", "MainUI", "vk.menugui maingui.close", GetColor(config.GUISet.bCloseColor), "0.01 0.01", "0.99 0.06"));//Кнопка закрыть
-            container.Add(Text("VKcloseGUI", "1 1 1 1", "Закрыть", TextAnchor.MiddleCenter, 18));//Текст кнопки закрыть
+            container.Add(Text("MainUI", "1 1 1 1", $"Группа сервера в ВК:\n<color=#049906>{config.GrGifts.VKGroupUrl}</color>", TextAnchor.MiddleCenter, 18, "0.01 0.06", "0.99 0.17"));         
+            container.Add(Button("VKcloseGUI", "MainUI", "vk.menugui maingui.close", GetColor(config.GUISet.BCloseColor), "0.01 0.01", "0.99 0.06"));
+            container.Add(Text("VKcloseGUI", "1 1 1 1", "Закрыть", TextAnchor.MiddleCenter, 18));
             CuiHelper.AddUi(player, container);
         }
         private void StartVKBotHelpVKGUI(BasePlayer player)
         {
-            CuiElementContainer container = new CuiElementContainer();
-            container.Add(BPanel("HelpUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true));//Основное окно
-            container.Add(Image("HelpUI", config.GUISet.Logo, "0.01 0.6", "0.99 0.99"));//Лого сервера
-            container.Add(Text("HelpUI", "1 1 1 1", UserName(player.displayName), TextAnchor.MiddleCenter, 18, "0.01 0.5", "0.99 0.6"));//Никнейм игрока
-            container.Add(Text("HelpUI", "1 1 1 1", "Наш бот не может отправить вам сообщение.\nОтправьте в сообщения группы слово <color=#049906>ИСПРАВИТЬ</color>\nи нажмите кнопку <color=#049906>ПОЛУЧИТЬ КОД</color>", TextAnchor.MiddleCenter, 18, "0.01 0.23", "0.99 0.5"));//Текст
-            container.Add(Button("VKsendGUI", "HelpUI", "vk.menugui helpgui.confirm", GetColor(config.GUISet.bSendColor), "0.01 0.08", "0.99 0.2"));//Кнопка получить код
-            container.Add(Text("VKsendGUI", "1 1 1 1", "Получить код", TextAnchor.MiddleCenter, 18));//Текст кнопки получить код
-            container.Add(Button("VKcloseGUI", "HelpUI", "vk.menugui helpgui.close", GetColor(config.GUISet.bCloseColor), "0.01 0.01", "0.99 0.06"));//Кнопка закрыть
-            container.Add(Text("VKcloseGUI", "1 1 1 1", "Закрыть", TextAnchor.MiddleCenter, 18));//Текст кнопки закрыть
+            CuiElementContainer container = new CuiElementContainer
+            {
+                BPanel("HelpUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true),
+                Image("HelpUI", config.GUISet.Logo, "0.01 0.6", "0.99 0.99"),
+                Text("HelpUI", "1 1 1 1", UserName(player.displayName), TextAnchor.MiddleCenter, 18, "0.01 0.5", "0.99 0.6"),
+                Text("HelpUI", "1 1 1 1", "Наш бот не может отправить вам сообщение.\nОтправьте в сообщения группы слово <color=#049906>ИСПРАВИТЬ</color>\nи нажмите кнопку <color=#049906>ПОЛУЧИТЬ КОД</color>", TextAnchor.MiddleCenter, 18, "0.01 0.23", "0.99 0.5"),//Текст
+                Button("VKsendGUI", "HelpUI", "vk.menugui helpgui.confirm", GetColor(config.GUISet.BSendColor), "0.01 0.08", "0.99 0.2"),
+                Text("VKsendGUI", "1 1 1 1", "Получить код", TextAnchor.MiddleCenter, 18),
+                Button("VKcloseGUI", "HelpUI", "vk.menugui helpgui.close", GetColor(config.GUISet.BCloseColor), "0.01 0.01", "0.99 0.06"),
+                Text("VKcloseGUI", "1 1 1 1", "Закрыть", TextAnchor.MiddleCenter, 18)
+            };
             CuiHelper.AddUi(player, container);
         }
         private void StartCodeSendedGUI(BasePlayer player)
         {
-            CuiElementContainer container = new CuiElementContainer();
-            container.Add(BPanel("CodeSendedUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true));//Основное окно
-            container.Add(Image("CodeSendedUI", config.GUISet.Logo, "0.01 0.6", "0.99 0.99"));//Лого сервера
-            container.Add(Text("CodeSendedUI", "1 1 1 1", UserName(player.displayName), TextAnchor.MiddleCenter, 18, "0.01 0.5", "0.99 0.6"));//Никнейм игрока
-            container.Add(Text("CodeSendedUI", "1 1 1 1", "На вашу страницу ВК отправлено\nсообщение с дальнейшими инструкциями.", TextAnchor.MiddleCenter, 18, "0.01 0.23", "0.99 0.5"));//Текст
-            container.Add(Button("VKcloseGUI", "CodeSendedUI", "vk.menugui csendui.close", GetColor(config.GUISet.bCloseColor), "0.01 0.01", "0.99 0.06"));//Кнопка закрыть
-            container.Add(Text("VKcloseGUI", "1 1 1 1", "Закрыть", TextAnchor.MiddleCenter, 18));//Текст кнопки закрыть
+            CuiElementContainer container = new CuiElementContainer
+            {
+                BPanel("CodeSendedUI", GetColor(config.GUISet.BgColor), config.GUISet.AnchorMin, config.GUISet.AnchorMax, "Hud", true),
+                Image("CodeSendedUI", config.GUISet.Logo, "0.01 0.6", "0.99 0.99"),
+                Text("CodeSendedUI", "1 1 1 1", UserName(player.displayName), TextAnchor.MiddleCenter, 18, "0.01 0.5", "0.99 0.6"),
+                Text("CodeSendedUI", "1 1 1 1", "На вашу страницу ВК отправлено\nсообщение с дальнейшими инструкциями.", TextAnchor.MiddleCenter, 18, "0.01 0.23", "0.99 0.5"),
+                Button("VKcloseGUI", "CodeSendedUI", "vk.menugui csendui.close", GetColor(config.GUISet.BCloseColor), "0.01 0.01", "0.99 0.06"),
+                Text("VKcloseGUI", "1 1 1 1", "Закрыть", TextAnchor.MiddleCenter, 18)
+            };
             CuiHelper.AddUi(player, container);
         }
         [ConsoleCommand("vk.menugui")]
@@ -2237,7 +2052,7 @@ namespace Oxide.Plugins
                     break;
                 case "addvkgui.addvk":
                     string url = string.Join(" ", arg.Args.Skip(1).ToArray());
-                    if (!url.Contains("vk.com/")) { PrintToChat(player, string.Format(GetMsg("НеправильнаяСсылка", player))); return; }
+                    if (!url.Contains("vk.com/")) { PrintToChat(player, string.Format(GetMsg("НеправильнаяСсылка"))); return; }
                     CuiHelper.DestroyUi(player, "AddVKUI");
                     CheckVkUser(player, url);
                     break;
@@ -2259,7 +2074,7 @@ namespace Oxide.Plugins
             {
                 TimeSpan interval = DateTime.Now - GiftsList[player];
                 if (interval.TotalSeconds < 15) { PrintToChat(player, "Слишком часто. Попробуйте позже."); return; }
-                else { GiftsList[player] = DateTime.Now;  VKGift(player); }
+                else { GiftsList[player] = DateTime.Now; VKGift(player); }
             }
             else
             {
@@ -2276,14 +2091,16 @@ namespace Oxide.Plugins
             string chpl = "\nЕсли хотите отправить жалобу на игрока, сначала нажмите на кнопку <color=#ff0000>ВЫБРАТЬ ИГРОКА</color>";
             if (target != null) chpl = $"\nЖалоба на игрока <color=#ff0000>{target.displayName}</color>";
             string title = "<color=#ff0000>" + config.AdmNotify.ReportsNotify + "</color>" + chpl + "\nВведите ваше сообщение в поле ниже и нажмите <color=#ff0000>ENTER</color>";
-            CuiElementContainer container = new CuiElementContainer();
-            container.Add(BPanel("ReportGUI", "0 0 0 0.75", "0.2 0.125", "0.8 0.9", "Hud", true));
-            container.Add(Panel("header", "0 0 0 0.75", "0 0.93", "1 1", "ReportGUI"));
-            container.Add(Text("header", "1 1 1 1", "Отправка сообщения администратору", TextAnchor.MiddleCenter, 20));
-            container.Add(Button("close", "header", "vk.report close", "1 0 0 1", "0.94 0.01", "1.0 0.98"));
-            container.Add(Text("close", "1 1 1 1", "X", TextAnchor.MiddleCenter, 20));
-            container.Add(Panel("text", "0 0 0 0.75", "0 0.77", "1 0.93", "ReportGUI"));
-            container.Add(Text("text", "1 1 1 1", title, TextAnchor.MiddleCenter, 18));
+            CuiElementContainer container = new CuiElementContainer
+            {
+                BPanel("ReportGUI", "0 0 0 0.75", "0.2 0.125", "0.8 0.9", "Hud", true),
+                Panel("header", "0 0 0 0.75", "0 0.93", "1 1", "ReportGUI"),
+                Text("header", "1 1 1 1", "Отправка сообщения администратору", TextAnchor.MiddleCenter, 20),
+                Button("close", "header", "vk.report close", "1 0 0 1", "0.94 0.01", "1.0 0.98"),
+                Text("close", "1 1 1 1", "X", TextAnchor.MiddleCenter, 20),
+                Panel("text", "0 0 0 0.75", "0 0.77", "1 0.93", "ReportGUI"),
+                Text("text", "1 1 1 1", title, TextAnchor.MiddleCenter, 18)
+            };
             if (target == null)
             {
                 container.Add(Button("PlayerChoise", "ReportGUI", "vk.report choiceplayer", "0.7 1 0.6 0.4", "0.378 0.71", "0.628 0.76"));
@@ -2301,7 +2118,7 @@ namespace Oxide.Plugins
         {
             BasePlayer player = arg.Player();
             if (player == null) return;
-            if (!config.AdmNotify.SendReports) { PrintToChat(player, string.Format(GetMsg("ФункцияОтключена", player))); return; }
+            if (!config.AdmNotify.SendReports) { PrintToChat(player, string.Format(GetMsg("ФункцияОтключена"))); return; }
             if (arg.Args == null) return;
             switch (arg.Args[0])
             {
@@ -2361,9 +2178,9 @@ namespace Oxide.Plugins
                             CuiHelper.DestroyUi(player, "PListGUI");
                             ReportGUI(player, utarget);
                         }
-                        else { PrintToChat(player, string.Format(GetMsg("ИгрокНеНайден", player))); return; }
+                        else { PrintToChat(player, string.Format(GetMsg("ИгрокНеНайден"))); return; }
                     }
-                    else { PrintToChat(player, string.Format(GetMsg("ИгрокНеНайден", player))); return; }
+                    else { PrintToChat(player, string.Format(GetMsg("ИгрокНеНайден"))); return; }
                     break;
                 case "page":
                     int page;
@@ -2377,8 +2194,7 @@ namespace Oxide.Plugins
         }
         private void PListUI(BasePlayer player)
         {
-            string text = null;
-            text = "Выберите игрока на которого хотите пожаловаться.";
+            string text = "Выберите игрока на которого хотите пожаловаться.";
             List<BasePlayer> players = new List<BasePlayer>();
             foreach (var pl in BasePlayer.activePlayerList)
             {
@@ -2389,9 +2205,11 @@ namespace Oxide.Plugins
             players = players.OrderBy(x => x.displayName).ToList();
             int maxPages = CalculatePages(players.Count);
             string pageNum = (maxPages > 1) ? $" - {GUIManager.Get(player).Page}" : "";
-            CuiElementContainer container = new CuiElementContainer();
-            container.Add(BPanel("PListGUI", "0 0 0 0.75", "0.2 0.125", "0.8 0.9", "Hud", true));
-            container.Add(Panel("header", "0 0 0 0.75", "0 0.93", "1 1", "PListGUI"));
+            CuiElementContainer container = new CuiElementContainer
+            {
+                BPanel("PListGUI", "0 0 0 0.75", "0.2 0.125", "0.8 0.9", "Hud", true),
+                Panel("header", "0 0 0 0.75", "0 0.93", "1 1", "PListGUI")
+            };
             if (maxPages != 1) text = text + " Страница " + pageNum.ToString();
             container.Add(Text("header", "1 1 1 1", text, TextAnchor.MiddleCenter, 20));
             container.Add(Button("close", "header", "vk.pllist close", "1 0 0 1", "0.94 0.01", "1.0 0.98"));
@@ -2406,11 +2224,10 @@ namespace Oxide.Plugins
                     if (players.ToArray().Length <= playerCount) continue;
                     string AnchorMin = (0.2f * i).ToString() + " " + (1f - (0.05f * j) - 0.05f).ToString();
                     string AnchorMax = ((0.2f * i) + 0.2f).ToString() + " " + (1f - (0.05f * j)).ToString();
-                    string playerName = players.ToArray()[playerCount].displayName;
                     string id = players.ToArray()[playerCount].UserIDString;
                     container.Add(Panel($"pn{id}", "0 0 0 0", AnchorMin, AnchorMax, "playerslist"));
                     container.Add(Button($"plbtn{id}", $"pn{id}", $"vk.pllist report {id}", "0 0 0 0.85", "0.05 0.05", "0.95 0.95"));
-                    container.Add(Text($"plbtn{id}", "1 1 1 1", UserName(playerName), TextAnchor.MiddleCenter, 18));
+                    container.Add(Text($"plbtn{id}", "1 1 1 1", UserName(players.ToArray()[playerCount].displayName), TextAnchor.MiddleCenter, 18));
                     playerCount++;
                 }
             }
@@ -2475,8 +2292,7 @@ namespace Oxide.Plugins
                 {"АвтоОповещенияОвайпе", "<size=17>Сервер рассылает оповещения о вайпе всем. Подписка не требуется</size>"}
             }, this);
         }
-        string GetMsg(string key, BasePlayer player = null) => GetMsg(key, player.UserIDString);
-        string GetMsg(string key, object userID = null) => lang.GetMessage(key, this, userID == null ? null : userID.ToString());
+        string GetMsg(string key) => lang.GetMessage(key, this);
         #endregion
     }
 }
